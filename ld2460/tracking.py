@@ -43,18 +43,22 @@ class Tracker:
 
     def update(self, targets: list[tuple[float, float]], now: float) -> PresenceReport:
         matched = self._associate(targets)
+        visible: set[int] = set()
 
         for tid, i in matched.items():
             tr = self._tracks[tid]
             x, y = targets[i]
             dt = now - tr.last_seen
             self._update_track(tr, x, y, dt, now)
+            visible.add(tid)
 
+        matched_targets = set(matched.values())
         for i, (x, y) in enumerate(targets):
-            if i in matched.values():
+            if i in matched_targets:
                 continue
-            self._tracks[self._next_id] = _Track(
-                id=self._next_id,
+            tid = self._next_id
+            self._tracks[tid] = _Track(
+                id=tid,
                 x=x,
                 y=y,
                 distance=math.hypot(x, y),
@@ -62,6 +66,7 @@ class Tracker:
                 samples=1,
                 last_seen=now,
             )
+            visible.add(tid)
             self._next_id += 1
 
         for tid in [
@@ -70,7 +75,7 @@ class Tracker:
             del self._tracks[tid]
 
         persons = [
-            self._to_person(tr) for tr in self._tracks.values() if tr.last_seen == now
+            self._to_person(self._tracks[tid]) for tid in visible if tid in self._tracks
         ]
         persons.sort(key=lambda p: p.id)
         return PresenceReport(timestamp=now, count=len(persons), persons=persons)
@@ -115,6 +120,7 @@ class Tracker:
         return Motion.APPROACHING if tr.velocity < 0 else Motion.MOVING_AWAY
 
     def _to_person(self, tr: _Track) -> Person:
+        # Bearing from boresight (the +y axis): atan2(x, y), degrees, sign = side.
         angle = math.degrees(math.atan2(tr.x, tr.y)) if (tr.x or tr.y) else 0.0
         return Person(
             id=tr.id,
