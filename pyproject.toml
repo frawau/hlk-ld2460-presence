@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hlk-ld2460-presence"
+dynamic = ["version"]
+description = "Asyncio library + CLI to decode the Hi-Link HLK-LD2460 24 GHz radar: presence, person count, and per-person motion (static / approaching / moving away)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "frawau", email = "fwautier61@gmail.com" }]
+keywords = [
+    "ld2460",
+    "hlk-ld2460",
+    "mmwave",
+    "radar",
+    "presence-detection",
+    "human-presence",
+    "asyncio",
+    "serial",
+    "home-assistant",
+    "iot",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Framework :: AsyncIO",
+    "Topic :: Home Automation",
+    "Topic :: System :: Hardware :: Hardware Drivers",
+    "Operating System :: POSIX :: Linux",
+]
+dependencies = [
+    "pyserial>=3.5",
+    "pyserial-asyncio>=0.6",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+ld2460 = "ld2460.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/frawau/hlk-ld2460-presence"
+Repository = "https://github.com/frawau/hlk-ld2460-presence"
+Issues = "https://github.com/frawau/hlk-ld2460-presence/issues"
+
+[tool.hatch.version]
+path = "ld2460/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ld2460"]

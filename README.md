@@ -4,25 +4,34 @@ Asyncio tool that decodes the Hi-Link HLK-LD2460 24 GHz radar serial stream and
 reports presence, person count, and per-person motion (static / approaching /
 moving away) to pluggable output sinks.
 
-## Setup
+## Install
 
 ```bash
+# From a clone (editable install, recommended for development)
 python3 -m venv venv
-./venv/bin/pip install -r requirements.txt
+./venv/bin/pip install -e .          # add ".[test]" to also get pytest
+
+# Or straight from GitHub
+pip install git+https://github.com/frawau/hlk-ld2460-presence.git
 ```
+
+This installs the importable `ld2460` library and the `ld2460` console command
+(dependencies `pyserial` + `pyserial-asyncio` come with it).
 
 ## Run
 
 ```bash
 # Live text output on the default port /dev/ttyACM0
-./venv/bin/python -m ld2460
+ld2460
 
 # JSON lines, custom port, send the enable-reporting command on start
-./venv/bin/python -m ld2460 --reporter json --port /dev/ttyACM0 --enable-on-start
+ld2460 --reporter json --port /dev/ttyACM0 --enable-on-start
 
 # Both sinks at once
-./venv/bin/python -m ld2460 --reporter text --reporter json
+ld2460 --reporter text --reporter json
 ```
+
+(If you didn't install it, the equivalent is `python -m ld2460 ...`.)
 
 Options: `--port`, `--baud` (default 115200), `--reporter {text,json}`
 (repeatable), `--static-threshold` (m/s dead-band for STATIC), `--gate` (max
