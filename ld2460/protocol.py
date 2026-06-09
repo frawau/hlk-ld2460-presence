@@ -57,7 +57,13 @@ def build_report_frame(targets: list[tuple[float, float]]) -> bytes:
     )
 
 
-_MAX_FRAME = 4096  # sanity bound for the length field
+# Header(4) + func(1) + length(2) before the payload.
+_REPORT_PREFIX_LEN = len(REPORT_HEADER) + 1 + 2
+# A report frame carries at most a handful of targets (the sensor tracks ~5
+# people). Cap well above that so a corrupt length field is rejected
+# immediately instead of stalling the reader while it waits for bogus bytes.
+_MAX_TARGETS = 32
+_MAX_FRAME = _MAX_TARGETS * 4 + _REPORT_OVERHEAD  # 139 bytes
 
 
 class FrameReader:
@@ -84,12 +90,13 @@ class FrameReader:
             idx = self._buf.find(REPORT_HEADER)
             if idx == -1:
                 # keep a possible partial header at the tail of the buffer
-                if len(self._buf) > 3:
-                    del self._buf[:-3]
+                partial = len(REPORT_HEADER) - 1
+                if len(self._buf) > partial:
+                    del self._buf[:-partial]
                 return None
             if idx > 0:
                 del self._buf[:idx]
-            if len(self._buf) < 7:
+            if len(self._buf) < _REPORT_PREFIX_LEN:
                 return None  # need header + func + length
             length = int.from_bytes(self._buf[5:7], "little")
             if (

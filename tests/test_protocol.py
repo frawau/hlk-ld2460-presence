@@ -6,6 +6,7 @@ from ld2460.protocol import (
     REPORT_HEADER,
     REPORT_TAIL,
     FrameError,
+    _MAX_FRAME,
     build_report_frame,
     parse_report_frame,
 )
@@ -102,3 +103,49 @@ def test_disable_reporting_bytes():
 
 def test_restart_bytes():
     assert restart().hex() == "fdfcfbfa0d0c0001" "04030201"
+
+
+def test_framereader_rejects_oversized_length_immediately():
+    # A false header claiming a huge (but >_MAX_FRAME) length must be skipped at
+    # once, not buffered — the good frame right after it is returned without
+    # waiting for the bogus byte count to arrive.
+    good = build_report_frame([(0.0, 2.0)])
+    false_header = REPORT_HEADER + bytes([0x04]) + (4095).to_bytes(2, "little")
+    fr = FrameReader()
+    out = fr.feed(false_header + good)
+    assert out == [[(0.0, 2.0)]]
+
+
+def test_framereader_split_mid_header():
+    fr = FrameReader()
+    frame = build_report_frame([(1.0, 2.0)])
+    assert fr.feed(frame[:2]) == []  # only half the header
+    assert fr.feed(frame[2:]) == [[(1.0, 2.0)]]
+
+
+def test_framereader_two_bad_frames_then_good():
+    fr = FrameReader()
+    good = build_report_frame([(0.0, 2.0)])
+    bad1 = bytearray(build_report_frame([(0.0, 5.0)]))
+    bad1[-1] = 0x00  # corrupt tail
+    bad2 = bytearray(build_report_frame([(1.0, 6.0)]))
+    bad2[-1] = 0x00  # corrupt tail
+    out = fr.feed(bytes(bad1) + bytes(bad2) + good)
+    assert out == [[(0.0, 2.0)]]
+
+
+def test_framereader_buffer_stays_bounded_under_garbage():
+    # Flood with valid-looking headers + oversized lengths; buffer must not grow
+    # without bound.
+    fr = FrameReader()
+    junk = (REPORT_HEADER + bytes([0x04]) + (4095).to_bytes(2, "little")) * 500
+    fr.feed(junk)
+    assert len(fr._buf) <= _MAX_FRAME + 8
+
+
+def test_framereader_false_header_in_garbage_then_good():
+    fr = FrameReader()
+    good = build_report_frame([(2.0, 3.0)])
+    # bytes that contain the header sequence mid-stream followed by junk then good
+    out = fr.feed(b"\xff\xee" + REPORT_HEADER + b"\x04\x09\x00zzz" + good)
+    assert out == [[(2.0, 3.0)]]
