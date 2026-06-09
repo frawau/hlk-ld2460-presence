@@ -42,6 +42,33 @@ All values in **mm**.
 common ground, supply 5 V. The enclosure must leave the connector header
 accessible (or route a cable out through a strain-relieved slot).
 
+## USB–serial bridge: CH343P module (lives inside the enclosure)
+
+The board connects to the host through a **WCH CH343P USB-to-UART module**, which
+is mounted **inside the same enclosure**. CH343P enumerates on Linux as the
+default port **`/dev/ttyACM0`** (CDC mode), matching the decoder's default.
+
+Wiring CH343P module → LD2460 (UART2):
+
+| CH343P module | LD2460 pin | Note                                        |
+|---------------|------------|---------------------------------------------|
+| TXD           | Rx2 (8)    | bridge TX → radar RX                         |
+| RXD           | Tx2 (7)    | radar TX → bridge RX                         |
+| 5V (USB VBUS) | 5V (1)     | USB supplies the radar (≤250 mA avg, fits USB) |
+| GND           | GND (2)    | common ground (required for valid serial)   |
+
+Enclosure implications added by the CH343P:
+- **USB connector access:** the module's USB port (USB-C / micro-B) must reach an
+  opening in the enclosure wall for the host cable.
+- Set the module's **IO voltage to 5 V** (or use a module whose UART logic is 5 V)
+  so it drives the LD2460 directly — confirm the specific module's jumper/strap.
+- **Measure the exact CH343P module** (PCB L×W, USB-connector height and edge
+  offset, mounting-hole pattern) — third-party CH343P breakouts vary; the
+  enclosure needs a pocket/standoffs sized to the actual board on hand.
+- Keep the CH343P and its USB cable **behind/beside the radar antenna plane**, not
+  in front of it, to avoid disturbing the 24 GHz beam.
+- Plan internal routing for the 4-wire LD2460↔CH343P harness with strain relief.
+
 ## Electrical
 
 - Working frequency: **24 – 24.25 GHz**, bandwidth 250 MHz, FMCW, EIRP 13 dBm.
