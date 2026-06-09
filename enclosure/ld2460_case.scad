@@ -49,9 +49,10 @@ foot_depth = up_out_d + ch343_w + foot_extra_depth + wall;
 module body_blank() {
     // Foot slab on the screen
     translate([-out_w / 2, 0, 0]) cube([out_w, foot_depth, foot_h]);
-    // Upright at the foot front, tilted to look down (top leans toward room)
+    // Upright at the foot front, tilted so the antenna looks slightly DOWN
+    // (positive tilt_deg leans the top toward the room / -Y).
     translate([0, 0, foot_h])
-        rotate([-tilt_deg, 0, 0])
+        rotate([tilt_deg, 0, 0])
             translate([-out_w / 2, 0, 0]) cube([out_w, up_out_d, up_h]);
 }
 

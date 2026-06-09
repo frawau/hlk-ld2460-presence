@@ -17,7 +17,7 @@ PREVIEW_DIR = os.path.join(os.path.dirname(__file__), "..", "enclosure", "previe
 def render_stl(part, defs=None):
     """Render a part to STL. Returns (CompletedProcess, stl_path)."""
     out = tempfile.NamedTemporaryFile(suffix=".stl", delete=False).name
-    cmd = ["openscad", "-o", out, "-D", f'part="{part}"']
+    cmd = ["openscad", "-o", out, "--export-format", "binstl", "-D", f'part="{part}"']
     for k, v in (defs or {}).items():
         cmd += ["-D", f"{k}={v}"]
     cmd += ["--hardwarnings", SCAD]
