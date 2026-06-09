@@ -55,3 +55,54 @@ def build_report_frame(targets: list[tuple[float, float]]) -> bytes:
         + body
         + REPORT_TAIL
     )
+
+
+_MAX_FRAME = 4096  # sanity bound for the length field
+
+
+class FrameReader:
+    """Stateful, resynchronising parser. Feed raw bytes, get decoded frames."""
+
+    def __init__(self) -> None:
+        self._buf = bytearray()
+
+    def feed(self, data: bytes) -> list[list[tuple[float, float]]]:
+        self._buf.extend(data)
+        frames: list[list[tuple[float, float]]] = []
+        while True:
+            frame = self._extract_one()
+            if frame is None:
+                break
+            try:
+                frames.append(parse_report_frame(frame))
+            except FrameError:
+                pass  # already resynced past the header in _extract_one
+        return frames
+
+    def _extract_one(self) -> bytes | None:
+        idx = self._buf.find(REPORT_HEADER)
+        if idx == -1:
+            # keep a possible partial header at the tail of the buffer
+            if len(self._buf) > 3:
+                del self._buf[:-3]
+            return None
+        if idx > 0:
+            del self._buf[:idx]
+        if len(self._buf) < 7:
+            return None  # need header + func + length
+        length = int.from_bytes(self._buf[5:7], "little")
+        if (
+            length < _REPORT_OVERHEAD
+            or length > _MAX_FRAME
+            or (length - _REPORT_OVERHEAD) % 4 != 0
+        ):
+            del self._buf[:4]  # corrupt length — skip this header, resync
+            return self._extract_one()  # continue searching
+        if len(self._buf) < length:
+            return None  # wait for the rest of the frame
+        frame = bytes(self._buf[:length])
+        if frame[-4:] != REPORT_TAIL:
+            del self._buf[:4]  # bad tail — skip header, resync
+            return self._extract_one()  # continue searching
+        del self._buf[:length]
+        return frame

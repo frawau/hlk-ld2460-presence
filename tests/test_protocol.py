@@ -48,3 +48,42 @@ def test_length_mismatch_raises():
     frame = bytes.fromhex("F4F3F2F1 04 FF00 0F00 1700 F8F7F6F5".replace(" ", ""))
     with pytest.raises(FrameError):
         parse_report_frame(frame)
+
+
+from ld2460.protocol import FrameReader
+
+
+def test_framereader_single_frame():
+    fr = FrameReader()
+    frame = build_report_frame([(1.5, 2.3)])
+    assert fr.feed(frame) == [[(1.5, 2.3)]]
+
+
+def test_framereader_split_across_chunks():
+    fr = FrameReader()
+    frame = build_report_frame([(0.0, 2.0)])
+    assert fr.feed(frame[:5]) == []
+    assert fr.feed(frame[5:]) == [[(0.0, 2.0)]]
+
+
+def test_framereader_resyncs_past_garbage():
+    fr = FrameReader()
+    frame = build_report_frame([(0.0, 2.0)])
+    out = fr.feed(b"\x00\x11garbage" + frame)
+    assert out == [[(0.0, 2.0)]]
+
+
+def test_framereader_two_frames_in_one_feed():
+    fr = FrameReader()
+    a = build_report_frame([(1.0, 1.0)])
+    b = build_report_frame([(2.0, 2.0), (3.0, 3.0)])
+    assert fr.feed(a + b) == [[(1.0, 1.0)], [(2.0, 2.0), (3.0, 3.0)]]
+
+
+def test_framereader_drops_frame_with_bad_tail():
+    fr = FrameReader()
+    good = build_report_frame([(0.0, 2.0)])
+    bad = bytearray(build_report_frame([(0.0, 5.0)]))
+    bad[-1] = 0x00  # corrupt tail
+    out = fr.feed(bytes(bad) + good)
+    assert out == [[(0.0, 2.0)]]
