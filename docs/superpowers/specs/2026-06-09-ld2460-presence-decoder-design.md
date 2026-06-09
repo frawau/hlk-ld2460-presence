@@ -48,9 +48,12 @@ the sensor over time.
 
 ### Useful command frames (host → radar)
 
-- Enable reporting: `FD FC FB FA 06 0C 00 00 01 04 03 02 01`
-- Disable reporting: `FD FC FB FA 06 0C 00 00 00 04 03 02 01`
-- Restart: `FD FC FB FA 0D 0C 00 01 04 03 02 01`
+- Enable reporting: `FD FC FB FA 06 0C 00 01 04 03 02 01` (12 bytes; data byte `01`)
+- Disable reporting: `FD FC FB FA 06 0C 00 00 04 03 02 01` (12 bytes; data byte `00`)
+- Restart: `FD FC FB FA 0D 0C 00 01 04 03 02 01` (12 bytes; data byte `01`)
+
+Command frame structure: `header(4) + func(1) + length(2, LE) + data + tail(4)`,
+where `length` is the total byte count (12 for a single data byte).
 
 Command frames use header `FD FC FB FA` and tail `04 03 02 01` (distinct from the
 reporting frame markers).
