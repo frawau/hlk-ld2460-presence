@@ -45,18 +45,58 @@ board_margin = 3;
 up_h      = ld2460_h + 2 * board_margin;       // upright inner height (board + slack)
 foot_h    = wall + max(ch343_t + usb_h, 6) + 1;
 foot_depth = up_out_d + ch343_w + foot_extra_depth + wall;
+// The tilted upright must sink into the foot so the two weld into one solid
+// (a flat-on-tilted contact would only touch along an edge -> non-manifold).
+plunge    = up_out_d * sin(tilt_deg) + 2;
 
-module body_blank() {
-    // Foot slab on the screen
-    translate([-out_w / 2, 0, 0]) cube([out_w, foot_depth, foot_h]);
-    // Upright at the foot front, tilted so the antenna looks slightly DOWN
-    // (positive tilt_deg leans the top toward the room / -Y).
-    translate([0, 0, foot_h])
-        rotate([tilt_deg, 0, 0])
-            translate([-out_w / 2, 0, 0]) cube([out_w, up_out_d, up_h]);
+// Hollow interior of the upright (board + clearances); thin window stays at the
+// front, side walls remain, back stays open for the lid.
+module ld2460_board_cavity() {
+    translate([wall, window_wall, wall])
+        cube([out_w - 2 * wall, up_in_d + 1, up_h - 2 * wall]);
 }
 
-module shell() { body_blank(); }
+// Per-side rib pairs that form a vertical groove gripping the left/right PCB
+// edges. Each rib overlaps its side wall (for a clean manifold weld) and
+// protrudes into the cavity; the front/back rib pair captures the board edge in
+// Y at the board's front-face position (so the antenna sees the window).
+module ld2460_edge_slots() {
+    slot_y = window_wall + front_gap;          // board front face (Y)
+    protrude = 1.2;                            // how far ribs reach into cavity
+    rib_t = 1.0;                               // rib thickness in Y
+    z0 = wall + 1;
+    zh = up_h - 2 * wall - 2;
+    // left side: overlap the left wall, protrude into the cavity (+X)
+    for (ry = [slot_y - rib_t, slot_y + ld2460_t + fit_clear])
+        translate([wall - 1.2, ry, z0]) cube([protrude + 1.2, rib_t, zh]);
+    // right side: overlap the right wall, protrude into the cavity (-X)
+    for (ry = [slot_y - rib_t, slot_y + ld2460_t + fit_clear])
+        translate([out_w - wall - protrude, ry, z0]) cube([protrude + 1.2, rib_t, zh]);
+}
+
+module foot_interior() {
+    translate([wall, wall, wall])
+        cube([out_w - 2 * wall, foot_depth - 2 * wall, foot_h]);  // open top
+}
+
+module shell() {
+    difference() {
+        union() {
+            translate([-out_w / 2, 0, 0]) cube([out_w, foot_depth, foot_h]);
+            translate([0, 0, foot_h])
+                rotate([tilt_deg, 0, 0])
+                    translate([-out_w / 2, 0, -plunge])
+                        cube([out_w, up_out_d, up_h + plunge]);
+        }
+        translate([-out_w / 2, 0, 0]) foot_interior();
+        translate([0, 0, foot_h])
+            rotate([tilt_deg, 0, 0])
+                translate([-out_w / 2, 0, 0]) ld2460_board_cavity();
+    }
+    translate([0, 0, foot_h])
+        rotate([tilt_deg, 0, 0])
+            translate([-out_w / 2, 0, 0]) ld2460_edge_slots();
+}
 module lid()   { /* defined in a later task */ }
 
 if (part == "shell") shell();

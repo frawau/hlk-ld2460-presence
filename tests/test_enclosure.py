@@ -79,3 +79,19 @@ def test_shell_renders_and_outer_size_is_sane():
     # Tall enough to hold the 49.5 mm board plus the foot
     assert dz >= 50.0, f"height {dz}"
     render_png("all", "assembly.png")
+
+
+def test_shell_is_hollow_and_manifold():
+    # The shell must be a clean, printable solid. CGAL (OpenSCAD 2021.01) merges
+    # coplanar faces, so a hollow box stays low-poly; a solid blank is ~24 tris,
+    # the hollowed shell well above that. More importantly, it must be 2-manifold.
+    proc, stl = render_stl("shell")
+    assert proc.returncode == 0, proc.stderr
+    assert "may not be a valid 2-manifold" not in (
+        proc.stderr + proc.stdout
+    ), proc.stderr
+    with open(stl, "rb") as f:
+        f.seek(80)
+        n_tris = struct.unpack("<I", f.read(4))[0]
+    assert n_tris > 40, f"shell looks un-hollowed ({n_tris} tris)"
+    render_png("shell", "shell.png")
