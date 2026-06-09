@@ -107,3 +107,20 @@ class FrameReader:
                 continue
             del self._buf[:length]
             return frame
+
+
+def _command(func: int, data: bytes = b"") -> bytes:
+    length = len(CMD_HEADER) + 1 + 2 + len(data) + len(CMD_TAIL)
+    return CMD_HEADER + bytes([func]) + length.to_bytes(2, "little") + data + CMD_TAIL
+
+
+def enable_reporting() -> bytes:
+    return _command(0x06, b"\x01")
+
+
+def disable_reporting() -> bytes:
+    return _command(0x06, b"\x00")
+
+
+def restart() -> bytes:
+    return _command(0x0D, b"\x01")

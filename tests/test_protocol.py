@@ -87,3 +87,18 @@ def test_framereader_drops_frame_with_bad_tail():
     bad[-1] = 0x00  # corrupt tail
     out = fr.feed(bytes(bad) + good)
     assert out == [[(0.0, 2.0)]]
+
+
+from ld2460.protocol import disable_reporting, enable_reporting, restart
+
+
+def test_enable_reporting_bytes():
+    assert enable_reporting().hex() == "fdfcfbfa060c0001" "04030201"
+
+
+def test_disable_reporting_bytes():
+    assert disable_reporting().hex() == "fdfcfbfa060c0000" "04030201"
+
+
+def test_restart_bytes():
+    assert restart().hex() == "fdfcfbfa0d0c0001" "04030201"
