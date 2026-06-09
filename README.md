@@ -25,8 +25,43 @@ python3 -m venv venv
 ```
 
 Options: `--port`, `--baud` (default 115200), `--reporter {text,json}`
-(repeatable), `--static-threshold` (m/s dead-band for STATIC),
-`--enable-on-start`.
+(repeatable), `--static-threshold` (m/s dead-band for STATIC), `--gate` (max
+metres a target may jump between frames), `--age-out` (seconds before an unseen
+track is dropped), `--smoothing` (EMA factor in (0,1]; lower = steadier,
+laggier), `--enable-on-start`.
+
+## Use as a library
+
+Drive the decoder from your own code (e.g. to feed another module) — no CLI
+required. The simplest seam opens the port and yields `PresenceReport` objects:
+
+```python
+import asyncio
+from ld2460 import stream_presence
+
+async def main():
+    async for report in stream_presence("/dev/ttyACM0", static_threshold=0.1):
+        print(report.count, report.to_dict())
+
+asyncio.run(main())
+```
+
+If you already manage the serial connection, use `iter_reports` with any object
+exposing `async read(n) -> bytes`:
+
+```python
+from ld2460 import Tracker, iter_reports
+from ld2460.transport import open_byte_stream
+
+reader, _ = await open_byte_stream("/dev/ttyACM0")
+async for report in iter_reports(reader, Tracker(smoothing=0.3)):
+    ...  # report.present, report.count, report.persons[i].motion, .distance, .angle
+```
+
+Or push to multiple sinks with `run_pipeline(reader, tracker, reporters)` and
+custom `Reporter` subclasses (see below). `PresenceReport.to_dict()` gives a
+JSON-ready dict. Pass an `asyncio.Event` as `stop=` to any of these for
+graceful shutdown.
 
 ## How motion is derived
 

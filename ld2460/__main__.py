@@ -42,6 +42,24 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="radial speed (m/s) below which motion is STATIC",
     )
     p.add_argument(
+        "--gate",
+        type=float,
+        default=1.0,
+        help="max metres a target may move between frames to stay the same track",
+    )
+    p.add_argument(
+        "--age-out",
+        type=float,
+        default=0.5,
+        help="seconds before an unseen track is dropped",
+    )
+    p.add_argument(
+        "--smoothing",
+        type=float,
+        default=0.5,
+        help="EMA factor in (0, 1] for distance/velocity (lower = steadier, laggier)",
+    )
+    p.add_argument(
         "--enable-on-start",
         action="store_true",
         help="send the enable-reporting command before listening",
@@ -49,11 +67,22 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     args = p.parse_args(argv)
     if not args.reporter:
         args.reporter = ["text"]
+    if not 0.0 < args.smoothing <= 1.0:
+        p.error("--smoothing must be in the range (0, 1]")
     return args
 
 
 def build_reporters(names: Sequence[str]) -> list[Reporter]:
     return [_REPORTER_FACTORIES[n]() for n in names]
+
+
+def build_tracker(args: argparse.Namespace) -> Tracker:
+    return Tracker(
+        static_threshold=args.static_threshold,
+        gate=args.gate,
+        age_out=args.age_out,
+        smoothing=args.smoothing,
+    )
 
 
 async def _amain(args: argparse.Namespace) -> None:
@@ -62,7 +91,7 @@ async def _amain(args: argparse.Namespace) -> None:
         if args.enable_on_start:
             writer.write(enable_reporting())
             await writer.drain()
-        tracker = Tracker(static_threshold=args.static_threshold)
+        tracker = build_tracker(args)
         reporters = build_reporters(args.reporter)
 
         stop = asyncio.Event()

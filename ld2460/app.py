@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from typing import Protocol
 
-from .protocol import FrameReader
+from .model import PresenceReport
+from .protocol import FrameReader, enable_reporting
 from .reporters import Reporter
 from .tracking import Tracker
 
@@ -40,6 +41,32 @@ async def _read_or_stop(reader: ByteReader, n: int, stop) -> bytes | None:
     return None
 
 
+async def iter_reports(
+    reader: ByteReader,
+    tracker: Tracker,
+    *,
+    clock: Callable[[], float] = time.monotonic,
+    read_size: int = 256,
+    stop=None,
+) -> AsyncIterator[PresenceReport]:
+    """Yield one PresenceReport per decoded radar frame until EOF or `stop`.
+
+    The programmatic integration seam: drive it from your own code to consume
+    presence updates without writing a Reporter::
+
+        reader, _ = await open_byte_stream("/dev/ttyACM0")
+        async for report in iter_reports(reader, Tracker()):
+            ...
+    """
+    frame_reader = FrameReader()
+    while stop is None or not stop.is_set():
+        data = await _read_or_stop(reader, read_size, stop)
+        if data is None or not data:  # stop fired, or EOF
+            break
+        for targets in frame_reader.feed(data):
+            yield tracker.update(targets, clock())
+
+
 async def run_pipeline(
     reader: ByteReader,
     tracker: Tracker,
@@ -49,27 +76,60 @@ async def run_pipeline(
     read_size: int = 256,
     stop=None,
 ) -> None:
-    """Drive the decode pipeline until EOF or `stop` is set.
+    """Drive the decode pipeline, sending each report to every reporter.
 
-    reader: object with ``async read(n) -> bytes`` (serial stream or fake).
-    stop:   optional asyncio.Event for graceful shutdown.
+    Starts reporters before the loop and closes them in a finally.
     """
-    frame_reader = FrameReader()
     started: list[Reporter] = []
     try:
         for r in reporters:
             await r.start()
             started.append(r)
-        while stop is None or not stop.is_set():
-            data = await _read_or_stop(reader, read_size, stop)
-            if data is None:  # stop fired during the read
-                break
-            if not data:  # EOF
-                break
-            for targets in frame_reader.feed(data):
-                report = tracker.update(targets, clock())
-                for r in reporters:
-                    await r.report(report)
+        async for report in iter_reports(
+            reader, tracker, clock=clock, read_size=read_size, stop=stop
+        ):
+            for r in reporters:
+                await r.report(report)
     finally:
         for r in started:
             await r.close()
+
+
+async def stream_presence(
+    port: str = "/dev/ttyACM0",
+    baud: int = 115200,
+    *,
+    tracker: Tracker | None = None,
+    enable_on_start: bool = False,
+    clock: Callable[[], float] = time.monotonic,
+    read_size: int = 256,
+    stop=None,
+    **tracker_kwargs,
+) -> AsyncIterator[PresenceReport]:
+    """Open the serial port and yield PresenceReports — the one-call integration.
+
+    Pass ``tracker=`` a preconfigured Tracker, or tracker_kwargs
+    (static_threshold, gate, age_out, smoothing, min_samples) to build one.
+    Closes the port on exit::
+
+        async for report in stream_presence("/dev/ttyACM0", static_threshold=0.1):
+            rdm.handle(report)
+    """
+    from .transport import open_byte_stream
+
+    reader, writer = await open_byte_stream(port, baud)
+    try:
+        if enable_on_start:
+            writer.write(enable_reporting())
+            await writer.drain()
+        tk = tracker if tracker is not None else Tracker(**tracker_kwargs)
+        async for report in iter_reports(
+            reader, tk, clock=clock, read_size=read_size, stop=stop
+        ):
+            yield report
+    finally:
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:  # pragma: no cover - best-effort close
+            pass

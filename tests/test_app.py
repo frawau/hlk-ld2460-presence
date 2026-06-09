@@ -1,7 +1,7 @@
 import asyncio
 import itertools
 
-from ld2460.app import run_pipeline
+from ld2460.app import iter_reports, run_pipeline, stream_presence
 from ld2460.model import Motion
 from ld2460.protocol import build_report_frame
 from ld2460.reporters import Reporter
@@ -91,3 +91,45 @@ async def test_pipeline_exits_when_stop_set_during_blocking_read():
         timeout=2.0,
     )
     assert rec.started and rec.closed
+
+
+async def test_iter_reports_yields_per_frame():
+    frames = [build_report_frame([(0.0, 2.0)]) for _ in range(3)]
+    reader = FakeReader(frames)
+    clock = itertools.count(0, 1)
+    reports = [
+        r async for r in iter_reports(reader, Tracker(), clock=lambda: next(clock))
+    ]
+    assert len(reports) == 3
+    assert all(r.count == 1 for r in reports)
+
+
+async def test_stream_presence_opens_port_and_yields(monkeypatch):
+    frames = [build_report_frame([(0.0, 2.0)]) for _ in range(2)]
+    reader = FakeReader(frames)
+
+    class FakeWriter:
+        def write(self, _b):
+            pass
+
+        async def drain(self):
+            pass
+
+        def close(self):
+            pass
+
+        async def wait_closed(self):
+            pass
+
+    async def fake_open(port, baud=115200):
+        return reader, FakeWriter()
+
+    import ld2460.transport
+
+    monkeypatch.setattr(ld2460.transport, "open_byte_stream", fake_open)
+    clock = itertools.count(0, 1)
+    reports = [
+        r async for r in stream_presence("/dev/whatever", clock=lambda: next(clock))
+    ]
+    assert len(reports) == 2
+    assert reports[-1].count == 1
