@@ -57,3 +57,7 @@ path = "ld2460/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ld2460"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
