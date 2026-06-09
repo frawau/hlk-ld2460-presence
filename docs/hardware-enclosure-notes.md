@@ -122,10 +122,15 @@ Enclosure implications added by the CH343P:
 - Mild thermal load (≤1.3 W); passive venting is sufficient, but avoid a fully
   sealed cavity if used at the warm end of the range.
 
-## Reference files (kept locally, git-ignored due to size)
+## Reference files (kept locally in `docs/datasheets/`, git-ignored)
 
-- `protocol.pdf` — HLK-LD2460 Serial Port Communication Protocol V1.0.
-- `module_manual.pdf` — HLK-LD2460 module manual V1.1 (dimensions in Figure 1).
-- Official resources (Google Drive, includes the Windows config/test tool
+- `docs/datasheets/HLK-LD2460_Serial_Port_Communication_Protocol_V1.0.pdf`
+  — [Google Drive](https://drive.google.com/file/d/1ITkbJnLw8h1AQUSBlRK5ojEpac-IojdK/view).
+- `docs/datasheets/HLK-LD2460_Module_Manual_V1.1.pdf` (dimensions in Figure 1)
+  — [Google Drive](https://drive.google.com/file/d/1wIa3Xxt-dfxGxgpftlkIEOw1_iv_fVDZ/view).
+- Official resources (Google Drive folder, includes the Windows config/test tool
   `HLK-2460_Tool_install.exe`):
-  https://drive.google.com/drive/folders/1JkImVaRfSgP8taq5W4aW_bCxlcqeHVan
+  <https://drive.google.com/drive/folders/1JkImVaRfSgP8taq5W4aW_bCxlcqeHVan>
+- Product page: <https://www.hlktech.net/index.php?id=1335>
+
+See [`docs/datasheets/README.md`](datasheets/README.md) for download instructions.

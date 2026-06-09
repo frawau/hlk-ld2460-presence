@@ -76,6 +76,22 @@ Subclass `ld2460.reporters.Reporter` (implement async `report()`; optional
 `start()`/`close()`) and register it in `ld2460/__main__.py`. The core pipeline
 is unchanged — this is the seam for an HTTP API or MQTT sink later.
 
+## Hardware & datasheets
+
+Sensor: **Hi-Link HLK-LD2460** — 24 GHz FMCW multi-target tracking radar
+([product page](https://www.hlktech.net/index.php?id=1335)). Serial: 115200 8N1,
+auto-reporting. The protocol decoded here is from Hi-Link's official documents:
+
+- [HLK-LD2460 Serial Port Communication Protocol V1.0 (PDF)](https://drive.google.com/file/d/1ITkbJnLw8h1AQUSBlRK5ojEpac-IojdK/view)
+- [HLK-LD2460 Module Manual V1.1 (PDF)](https://drive.google.com/file/d/1wIa3Xxt-dfxGxgpftlkIEOw1_iv_fVDZ/view)
+- [All HLK-LD2460 resources (Google Drive folder, incl. Windows config tool)](https://drive.google.com/drive/folders/1JkImVaRfSgP8taq5W4aW_bCxlcqeHVan)
+
+These PDFs are **not** committed to the repo (to avoid redistributing the
+vendor's documents); download them from the links above into `docs/datasheets/`
+for offline reference — see [`docs/datasheets/README.md`](docs/datasheets/README.md).
+Wiring, board dimensions, pinout, and enclosure notes are in
+[`docs/hardware-enclosure-notes.md`](docs/hardware-enclosure-notes.md).
+
 ## Tests
 
 ```bash
