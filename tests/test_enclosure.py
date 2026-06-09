@@ -95,3 +95,13 @@ def test_shell_is_hollow_and_manifold():
         n_tris = struct.unpack("<I", f.read(4))[0]
     assert n_tris > 40, f"shell looks un-hollowed ({n_tris} tris)"
     render_png("shell", "shell.png")
+
+
+def test_foot_features_keep_shell_manifold():
+    # CH343P pocket (additive) + wire channel (cut) must not break manifoldness.
+    proc, stl = render_stl("shell")
+    assert proc.returncode == 0, proc.stderr
+    assert "may not be a valid 2-manifold" not in (proc.stderr + proc.stdout)
+    dx, _, _ = stl_bbox(stl)
+    assert 35.0 <= dx <= 39.0, f"width {dx}"
+    render_png("shell", "shell.png")

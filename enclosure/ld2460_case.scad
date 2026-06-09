@@ -79,6 +79,29 @@ module foot_interior() {
         cube([out_w - 2 * wall, foot_depth - 2 * wall, foot_h]);  // open top
 }
 
+// Cut (in the upright local frame): opens the cavity floor down through the
+// plunge into the foot interior so the perpendicular harness plugs and the 4
+// wires route from the board's connector edge down to the CH343P.
+module wire_channel() {
+    cw = cav_w * 0.7;
+    translate([(out_w - cw) / 2, window_wall, -plunge - 2])
+        cube([cw, up_in_d, wall + plunge + 4]);
+}
+
+// Additive U of retaining ribs in the foot floor that locate the CH343P (flat,
+// long edge across X, short edge along Y, Type-C toward the back/+Y, open at the
+// back for the lid's USB cutout).
+module ch343_pocket() {
+    pw = ch343_l + 2 * fit_clear;
+    pd = ch343_w + 2 * fit_clear;
+    py = up_out_d + 1;             // pocket front, just behind the upright base
+    rib = 1.5;
+    rh = ch343_t + 2;
+    translate([-pw / 2 - rib, py, wall - 0.5]) cube([rib, pd, rh]);            // left
+    translate([pw / 2, py, wall - 0.5]) cube([rib, pd, rh]);                   // right
+    translate([-pw / 2 - rib, py - rib, wall - 0.5]) cube([pw + 2 * rib, rib, rh]);  // front
+}
+
 module shell() {
     difference() {
         union() {
@@ -92,10 +115,14 @@ module shell() {
         translate([0, 0, foot_h])
             rotate([tilt_deg, 0, 0])
                 translate([-out_w / 2, 0, 0]) ld2460_board_cavity();
+        translate([0, 0, foot_h])
+            rotate([tilt_deg, 0, 0])
+                translate([-out_w / 2, 0, 0]) wire_channel();
     }
     translate([0, 0, foot_h])
         rotate([tilt_deg, 0, 0])
             translate([-out_w / 2, 0, 0]) ld2460_edge_slots();
+    ch343_pocket();
 }
 module lid()   { /* defined in a later task */ }
 
