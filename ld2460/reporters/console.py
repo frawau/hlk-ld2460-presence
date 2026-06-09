@@ -26,7 +26,7 @@ class ConsoleTextReporter(Reporter):
             line = "no presence"
         else:
             parts = [
-                f"#{p.id} d={p.distance:.1f}m a={p.angle:+.0f}° {p.motion.value}"
+                f"#{p.id} d={p.distance:.1f}m a={p.angle:+.0f}deg {p.motion.value}"
                 for p in report.persons
             ]
             line = f"present={report.count} | " + " | ".join(parts)

@@ -1,3 +1,4 @@
+import asyncio
 import itertools
 
 from ld2460.app import run_pipeline
@@ -55,3 +56,38 @@ async def test_pipeline_stops_on_eof():
     await run_pipeline(reader, Tracker(), [rec], clock=lambda: 0.0)
     assert rec.reports == []
     assert rec.closed
+
+
+async def test_pipeline_handles_frame_split_across_reads():
+    frame = build_report_frame([(0.0, 2.0)])
+    reader = FakeReader([frame[:3], frame[3:]])
+    rec = RecordingReporter()
+    clock = itertools.count(0, 1)
+    await run_pipeline(reader, Tracker(), [rec], clock=lambda: next(clock))
+    assert len(rec.reports) == 1
+    assert rec.reports[0].count == 1
+
+
+async def test_pipeline_exits_when_stop_set_during_blocking_read():
+    stop = asyncio.Event()
+
+    class BlockingReader:
+        async def read(self, _n):
+            await asyncio.Event().wait()  # blocks forever
+
+    rec = RecordingReporter()
+
+    async def trigger():
+        await asyncio.sleep(0.05)
+        stop.set()
+
+    await asyncio.wait_for(
+        asyncio.gather(
+            run_pipeline(
+                BlockingReader(), Tracker(), [rec], clock=lambda: 0.0, stop=stop
+            ),
+            trigger(),
+        ),
+        timeout=2.0,
+    )
+    assert rec.started and rec.closed

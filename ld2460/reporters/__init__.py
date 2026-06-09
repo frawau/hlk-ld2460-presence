@@ -17,3 +17,6 @@ class Reporter(abc.ABC):
 
     async def close(self) -> None:  # noqa: B027 - optional hook
         """Optional async teardown."""
+
+
+__all__ = ["Reporter"]

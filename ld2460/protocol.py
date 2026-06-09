@@ -131,3 +131,19 @@ def disable_reporting() -> bytes:
 
 def restart() -> bytes:
     return _command(0x0D, b"\x01")
+
+
+__all__ = [
+    "REPORT_HEADER",
+    "REPORT_TAIL",
+    "REPORT_FUNC",
+    "CMD_HEADER",
+    "CMD_TAIL",
+    "FrameError",
+    "parse_report_frame",
+    "build_report_frame",
+    "FrameReader",
+    "enable_reporting",
+    "disable_reporting",
+    "restart",
+]

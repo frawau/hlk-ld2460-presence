@@ -23,7 +23,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         prog="ld2460", description="HLK-LD2460 presence decoder"
     )
     p.add_argument("--port", default="/dev/ttyACM0", help="serial device")
-    p.add_argument("--baud", type=int, default=115200, help="baud rate")
+    p.add_argument(
+        "--baud",
+        type=int,
+        default=115200,
+        help="baud rate (LD2460 default 115200; change only if you reconfigured the module)",
+    )
     p.add_argument(
         "--reporter",
         action="append",
@@ -53,21 +58,28 @@ def build_reporters(names: Sequence[str]) -> list[Reporter]:
 
 async def _amain(args: argparse.Namespace) -> None:
     reader, writer = await open_byte_stream(args.port, args.baud)
-    if args.enable_on_start:
-        writer.write(enable_reporting())
-        await writer.drain()
-    tracker = Tracker(static_threshold=args.static_threshold)
-    reporters = build_reporters(args.reporter)
+    try:
+        if args.enable_on_start:
+            writer.write(enable_reporting())
+            await writer.drain()
+        tracker = Tracker(static_threshold=args.static_threshold)
+        reporters = build_reporters(args.reporter)
 
-    stop = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
+        stop = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            try:
+                loop.add_signal_handler(sig, stop.set)
+            except NotImplementedError:  # pragma: no cover - non-POSIX
+                pass
+
+        await run_pipeline(reader, tracker, reporters, stop=stop)
+    finally:
+        writer.close()
         try:
-            loop.add_signal_handler(sig, stop.set)
-        except NotImplementedError:  # pragma: no cover - non-POSIX
+            await writer.wait_closed()
+        except Exception:  # pragma: no cover - best-effort close
             pass
-
-    await run_pipeline(reader, tracker, reporters, stop=stop)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
