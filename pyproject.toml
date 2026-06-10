@@ -43,9 +43,13 @@ test = [
     "pytest>=8",
     "pytest-asyncio>=0.23",
 ]
+server = [
+    "aiohttp>=3.9",
+]
 
 [project.scripts]
 ld2460 = "ld2460.__main__:main"
+ld2460-server = "ld2460.server.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/frawau/hlk-ld2460-presence"
