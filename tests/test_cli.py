@@ -18,7 +18,8 @@ def test_reporter_selection():
 
 
 def test_build_reporters_maps_names():
-    reporters = build_reporters(["text", "json"])
+    args = parse_args(["--reporter", "text", "--reporter", "json"])
+    reporters = build_reporters(args)
     assert isinstance(reporters[0], ConsoleTextReporter)
     assert isinstance(reporters[1], ConsoleJsonReporter)
 

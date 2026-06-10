@@ -1,0 +1,19 @@
+:root { color-scheme: dark; font-family: system-ui, sans-serif; }
+body { margin: 1.5rem; background: #14161a; color: #e6e8eb; }
+h1 { font-size: 1.2rem; font-weight: 600; }
+.grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.card { background: #1e2228; border: 1px solid #2c313a; border-radius: 10px; padding: 1rem; transition: opacity .3s; }
+.card.offline { opacity: .45; }
+.card h2 { font-size: 1rem; margin: 0 0 .5rem; display: flex; align-items: center; gap: .5rem; }
+.dot { width: .6rem; height: .6rem; border-radius: 50%; background: #3ddc84; }
+.offline .dot { background: #767b85; }
+.monitor { width: 100%; height: 8px; background: #3a4150; border-radius: 3px; margin: .25rem 0 .75rem; }
+.people { display: flex; flex-wrap: wrap; gap: .35rem; min-height: 40px; align-items: flex-end; }
+.person { width: 26px; height: 34px; }
+.person.static { color: #9aa3af; }
+.person.approaching { color: #3ddc84; }
+.person.moving_away { color: #f5a623; }
+.person.unknown { color: #5b6472; }
+.count { margin-top: .6rem; font-size: .85rem; color: #aab2bd; }
+.empty { color: #767b85; font-style: italic; }
+.status { color: #767b85; font-size: .8rem; margin-top: 1.5rem; }
