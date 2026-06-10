@@ -49,6 +49,20 @@ foot_depth = up_out_d + ch343_w + foot_extra_depth + wall;
 // (a flat-on-tilted contact would only touch along an edge -> non-manifold).
 plunge    = up_out_d * sin(tilt_deg) + 2;
 
+/* ----- Guards ----- */
+assert(window_wall >= 0.8, "window_wall too thin to print (>= 0.8 mm)");
+assert(wall >= 1.2, "wall too thin (>= 1.2 mm)");
+assert(front_gap > comp_height, "window gap must exceed comp_height");
+assert(cav_w > 2 * wall, "cavity width collapses; check ld2460_w/wall");
+
+// A few slots in the foot rear wall for the (small) thermal load.
+module vent_slots() {
+    if (vent)
+        for (i = [-1, 0, 1])
+            translate([i * 7 - 1.5, foot_depth - wall - 1, foot_h - 3])
+                cube([3, wall + 2, 1.2]);
+}
+
 // Hollow interior of the upright (board + clearances); thin window stays at the
 // front, side walls remain, back stays open for the lid.
 module ld2460_board_cavity() {
@@ -111,6 +125,12 @@ module rear_hook() {
         cube([out_w, hook_wall, hook_lip_h + wall]);  // welds to the foot floor
 }
 
+// Type-C cutout in the foot's rear wall (the CH343P's connector faces +Y).
+module usb_cutout() {
+    translate([-usb_w / 2, foot_depth - wall - 1, wall + 0.5])
+        cube([usb_w, wall + 2, usb_h]);
+}
+
 module shell() {
     difference() {
         union() {
@@ -127,6 +147,8 @@ module shell() {
         translate([0, 0, foot_h])
             rotate([tilt_deg, 0, 0])
                 translate([-out_w / 2, 0, 0]) wire_channel();
+        usb_cutout();
+        vent_slots();
     }
     translate([0, 0, foot_h])
         rotate([tilt_deg, 0, 0])
@@ -134,8 +156,21 @@ module shell() {
     ch343_pocket();
     rear_hook();
 }
-module lid()   { /* defined in a later task */ }
+// L-shaped cover: a tilted panel closing the upright's open back, plus a
+// horizontal panel closing the foot's open top behind the upright. The Type-C
+// cutout lives in the shell's foot rear wall, not here.
+module lid() {
+    // Upright back panel (tilted frame), sized to the open cavity width/height.
+    translate([0, 0, foot_h])
+        rotate([tilt_deg, 0, 0])
+            translate([-out_w / 2, 0, 0])
+                translate([wall, up_out_d - lid_t, wall])
+                    cube([out_w - 2 * wall, lid_t, up_h - 2 * wall]);
+    // Foot top panel, from behind the upright base to the foot rear wall.
+    translate([-out_w / 2 + wall, up_out_d, foot_h - lid_t])
+        cube([out_w - 2 * wall, foot_depth - up_out_d - wall, lid_t]);
+}
 
 if (part == "shell") shell();
 else if (part == "lid") lid();
-else { shell(); }
+else { shell(); lid(); }

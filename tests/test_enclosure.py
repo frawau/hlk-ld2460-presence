@@ -113,3 +113,24 @@ def test_rear_hook_drops_below_foot():
     # The lip extends well below the foot underside (Z=0).
     assert stl_z_min(stl) <= -10.0, f"hook lip zmin {stl_z_min(stl)}"
     render_png("shell", "shell.png")
+
+
+def test_lid_renders_and_spans_width():
+    proc, stl = render_stl("lid")
+    assert proc.returncode == 0, proc.stderr
+    assert "may not be a valid 2-manifold" not in (proc.stderr + proc.stdout)
+    dx, _, _ = stl_bbox(stl)
+    assert 30.0 <= dx <= 39.0, f"lid width {dx}"
+    render_png("lid", "lid.png")
+
+
+def test_bad_window_wall_is_rejected():
+    proc, _ = render_stl("shell", defs={"window_wall": 0})
+    assert proc.returncode != 0
+    assert "ERROR" in (proc.stderr + proc.stdout).upper()
+
+
+def test_vents_toggle_renders():
+    for v in ("true", "false"):
+        proc, _ = render_stl("shell", defs={"vent": v})
+        assert proc.returncode == 0, proc.stderr
