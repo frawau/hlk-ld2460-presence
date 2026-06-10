@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import signal
+import socket
 from collections.abc import Sequence
 
 from .app import run_pipeline
@@ -12,10 +13,7 @@ from .reporters.console import ConsoleJsonReporter, ConsoleTextReporter
 from .tracking import Tracker
 from .transport import open_byte_stream
 
-_REPORTER_FACTORIES = {
-    "text": ConsoleTextReporter,
-    "json": ConsoleJsonReporter,
-}
+_REPORTER_CHOICES = ["text", "json", "http"]
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -32,7 +30,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         "--reporter",
         action="append",
-        choices=sorted(_REPORTER_FACTORIES),
+        choices=_REPORTER_CHOICES,
         help="output sink (repeatable); default: text",
     )
     p.add_argument(
@@ -60,6 +58,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="EMA factor in (0, 1] for distance/velocity (lower = steadier, laggier)",
     )
     p.add_argument(
+        "--server-url",
+        default=None,
+        help="dashboard server URL for --reporter http (e.g. http://localhost:8099)",
+    )
+    p.add_argument(
+        "--screen-name",
+        default=socket.gethostname(),
+        help="screen name sent with --reporter http (default: hostname)",
+    )
+    p.add_argument(
         "--enable-on-start",
         action="store_true",
         help="send the enable-reporting command before listening",
@@ -69,11 +77,23 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         args.reporter = ["text"]
     if not 0.0 < args.smoothing <= 1.0:
         p.error("--smoothing must be in the range (0, 1]")
+    if "http" in args.reporter and not args.server_url:
+        p.error("--reporter http requires --server-url")
     return args
 
 
-def build_reporters(names: Sequence[str]) -> list[Reporter]:
-    return [_REPORTER_FACTORIES[n]() for n in names]
+def build_reporters(args: argparse.Namespace) -> list[Reporter]:
+    out: list[Reporter] = []
+    for name in args.reporter:
+        if name == "text":
+            out.append(ConsoleTextReporter())
+        elif name == "json":
+            out.append(ConsoleJsonReporter())
+        elif name == "http":
+            from .reporters.http_reporter import HttpReporter
+
+            out.append(HttpReporter(args.server_url, args.screen_name))
+    return out
 
 
 def build_tracker(args: argparse.Namespace) -> Tracker:
@@ -92,7 +112,7 @@ async def _amain(args: argparse.Namespace) -> None:
             writer.write(enable_reporting())
             await writer.drain()
         tracker = build_tracker(args)
-        reporters = build_reporters(args.reporter)
+        reporters = build_reporters(args)
 
         stop = asyncio.Event()
         loop = asyncio.get_running_loop()
