@@ -105,3 +105,11 @@ def test_foot_features_keep_shell_manifold():
     dx, _, _ = stl_bbox(stl)
     assert 35.0 <= dx <= 39.0, f"width {dx}"
     render_png("shell", "shell.png")
+
+
+def test_rear_hook_drops_below_foot():
+    proc, stl = render_stl("shell")
+    assert proc.returncode == 0, proc.stderr
+    # The lip extends well below the foot underside (Z=0).
+    assert stl_z_min(stl) <= -10.0, f"hook lip zmin {stl_z_min(stl)}"
+    render_png("shell", "shell.png")

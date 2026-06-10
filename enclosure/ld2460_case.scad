@@ -102,6 +102,15 @@ module ch343_pocket() {
     translate([-pw / 2 - rib, py - rib, wall - 0.5]) cube([pw + 2 * rib, rib, rh]);  // front
 }
 
+// A lip hanging below the foot, just behind the screen's back face, so the unit
+// cannot slide forward off the screen. The foot rests on the screen top from the
+// front (y=0) to its back face (~screen_edge_t); the lip drops behind that.
+module rear_hook() {
+    ly = screen_edge_t + hook_clear;
+    translate([-out_w / 2, ly, -hook_lip_h])
+        cube([out_w, hook_wall, hook_lip_h + wall]);  // welds to the foot floor
+}
+
 module shell() {
     difference() {
         union() {
@@ -123,6 +132,7 @@ module shell() {
         rotate([tilt_deg, 0, 0])
             translate([-out_w / 2, 0, 0]) ld2460_edge_slots();
     ch343_pocket();
+    rear_hook();
 }
 module lid()   { /* defined in a later task */ }
 
