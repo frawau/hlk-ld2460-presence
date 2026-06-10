@@ -85,6 +85,25 @@ Subclass `ld2460.reporters.Reporter` (implement async `report()`; optional
 `start()`/`close()`) and register it in `ld2460/__main__.py`. The core pipeline
 is unchanged — this is the seam for an HTTP API or MQTT sink later.
 
+## Live dashboard (optional)
+
+A small web dashboard can show every sensor's presence live — one card per
+screen with person icons coloured by motion (approaching / moving away / static).
+Needs the `server` extra (`aiohttp`):
+
+```bash
+pip install -e ".[server]"          # or "hlk-ld2460-presence[server]"
+
+# 1. start the dashboard
+ld2460-server --port 8099           # open http://localhost:8099
+
+# 2. point a sensor at it (one per screen)
+ld2460 --reporter http --server-url http://localhost:8099 --screen-name "office"
+```
+
+Screens auto-register on first report and grey out when a sensor goes silent.
+`--reporter http` can be combined with `text`/`json`.
+
 ## Hardware & datasheets
 
 Sensor: **Hi-Link HLK-LD2460** — 24 GHz FMCW multi-target tracking radar
