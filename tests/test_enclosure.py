@@ -74,9 +74,9 @@ def test_shell_renders_and_outer_size_is_sane():
     proc, stl = render_stl("shell")
     assert proc.returncode == 0, proc.stderr
     dx, dy, dz = stl_bbox(stl)
-    # Outer width ≈ board width (32) + 2*fit_clear (0.8) + 2*wall (4) ≈ 36.8
-    assert 35.0 <= dx <= 39.0, f"width {dx}"
-    # Tall enough to hold the 49.5 mm board plus the foot
+    # Landscape: outer width ≈ board long edge (49.5) + 2*fit_clear (0.8) + 2*wall (4) ≈ 54.3
+    assert 52.0 <= dx <= 57.0, f"width {dx}"
+    # Board short edge (32) + margins + foot + rear hook
     assert dz >= 50.0, f"height {dz}"
     render_png("all", "assembly.png")
 
@@ -103,7 +103,7 @@ def test_foot_features_keep_shell_manifold():
     assert proc.returncode == 0, proc.stderr
     assert "may not be a valid 2-manifold" not in (proc.stderr + proc.stdout)
     dx, _, _ = stl_bbox(stl)
-    assert 35.0 <= dx <= 39.0, f"width {dx}"
+    assert 52.0 <= dx <= 57.0, f"width {dx}"
     render_png("shell", "shell.png")
 
 
@@ -120,7 +120,7 @@ def test_lid_renders_and_spans_width():
     assert proc.returncode == 0, proc.stderr
     assert "may not be a valid 2-manifold" not in (proc.stderr + proc.stdout)
     dx, _, _ = stl_bbox(stl)
-    assert 30.0 <= dx <= 39.0, f"lid width {dx}"
+    assert 48.0 <= dx <= 57.0, f"lid width {dx}"
     render_png("lid", "lid.png")
 
 
@@ -128,6 +128,13 @@ def test_bad_window_wall_is_rejected():
     proc, _ = render_stl("shell", defs={"window_wall": 0})
     assert proc.returncode != 0
     assert "ERROR" in (proc.stderr + proc.stdout).upper()
+
+
+def test_portrait_orientation_still_renders():
+    proc, stl = render_stl("shell", defs={"landscape": "false"})
+    assert proc.returncode == 0, proc.stderr
+    dx, _, _ = stl_bbox(stl)
+    assert 35.0 <= dx <= 39.0, f"portrait width {dx}"
 
 
 def test_vents_toggle_renders():
