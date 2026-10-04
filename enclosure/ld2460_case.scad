@@ -6,8 +6,9 @@ part = "all";          // "shell" | "lid" | "all"
 $fn = 48;
 
 /* ----- Measured / to-confirm (defaults are placeholders) ----- */
-ld2460_w     = 32;     // PCB width  (X)
-ld2460_h     = 49.5;   // PCB height (Z)
+ld2460_w     = 32;     // PCB short edge
+ld2460_h     = 49.5;   // PCB long edge
+landscape    = true;   // true: long edge horizontal (X); false: portrait (long edge up, Z)
 ld2460_t     = 1.2;    // PCB thickness            [MEASURE]
 comp_height  = 5.0;    // front parts incl. perpendicular connectors [CONFIRM]
 ch343_l      = 26;     // CH343P long edge (across X)
@@ -36,13 +37,15 @@ lid_t        = 2.0;
 vent         = true;
 
 /* ----- Derived ----- */
-cav_w     = ld2460_w + 2 * fit_clear;          // inner width
+board_x   = landscape ? ld2460_h : ld2460_w;   // board extent across the case (X)
+board_z   = landscape ? ld2460_w : ld2460_h;   // board extent up the upright (Z)
+cav_w     = board_x + 2 * fit_clear;           // inner width
 out_w     = cav_w + 2 * wall;                  // outer width
 front_gap = comp_height + window_clear;        // board front -> window inner
 up_in_d   = front_gap + ld2460_t + back_gap;   // upright inner depth (Y)
 up_out_d  = window_wall + up_in_d;             // upright outer depth (back open)
 board_margin = 3;
-up_h      = ld2460_h + 2 * board_margin;       // upright inner height (board + slack)
+up_h      = board_z + 2 * board_margin;       // upright inner height (board + slack)
 foot_h    = wall + max(ch343_t + usb_h, 6) + 1;
 foot_depth = up_out_d + ch343_w + foot_extra_depth + wall;
 // The tilted upright must sink into the foot so the two weld into one solid
@@ -53,7 +56,7 @@ plunge    = up_out_d * sin(tilt_deg) + 2;
 assert(window_wall >= 0.8, "window_wall too thin to print (>= 0.8 mm)");
 assert(wall >= 1.2, "wall too thin (>= 1.2 mm)");
 assert(front_gap > comp_height, "window gap must exceed comp_height");
-assert(cav_w > 2 * wall, "cavity width collapses; check ld2460_w/wall");
+assert(cav_w > 2 * wall, "cavity width collapses; check board size/wall");
 
 // A few slots in the foot rear wall for the (small) thermal load.
 module vent_slots() {

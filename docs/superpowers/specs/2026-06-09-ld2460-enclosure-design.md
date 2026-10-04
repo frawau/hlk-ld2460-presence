@@ -15,7 +15,7 @@ Companion hardware reference: `docs/hardware-enclosure-notes.md`.
 ## Form factor & layout
 
 A compact wedge / "L". An **upright front housing** tilted ~12° back holds the
-LD2460 portrait (32 mm wide × 49.5 mm tall) so its 120° horizontal field of view
+LD2460 landscape (49.5 mm wide × 32 mm tall; `landscape=false` for portrait) so its 120° horizontal field of view
 sweeps across the room and the antenna faces the room through the front face. A
 shallow **base/foot** extends rearward, rests on the screen's top edge, and houses
 the CH343P lying flat (Type-C toward the rear). A **rear lip hooks down behind

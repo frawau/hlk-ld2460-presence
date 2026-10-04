@@ -39,6 +39,8 @@ The defaults render, but confirm against your hardware (edit the top of
   lip drops. `hook_clear` is the slip gap; `hook_lip_h` how far it hangs.
 - `tilt_deg` — antenna look-down angle (default 12°; the upright leans toward the
   room so the antenna aims slightly down).
+- `landscape` — board orientation in the upright. `true` (default) lays the
+  LD2460 long edge (49.5 mm) horizontal; `false` stands it portrait.
 - `fit_clear` — slip fit for the boards and lid (raise if parts are tight).
 
 ## Assembly
