@@ -25,15 +25,15 @@ def render_stl(part, defs=None):
     return proc, out
 
 
-def render_png(part, name):
+def render_png(part, name, defs=None):
     """Render a preview PNG into enclosure/preview/ for human inspection."""
     os.makedirs(PREVIEW_DIR, exist_ok=True)
     out = os.path.join(PREVIEW_DIR, name)
-    subprocess.run(
-        ["openscad", "-o", out, "-D", f'part="{part}"', "--imgsize=900,700", SCAD],
-        capture_output=True,
-        text=True,
-    )
+    cmd = ["openscad", "-o", out, "-D", f'part="{part}"']
+    for k, v in (defs or {}).items():
+        cmd += ["-D", f"{k}={v}"]
+    cmd += ["--imgsize=900,700", "--render", "--viewall", "--autocenter", SCAD]
+    subprocess.run(cmd, capture_output=True, text=True)
     return out
 
 
@@ -124,6 +124,29 @@ def test_lid_renders_and_spans_width():
     render_png("lid", "lid.png")
 
 
+@pytest.mark.parametrize("landscape", ["true", "false"])
+def test_lid_does_not_collide_with_shell(landscape):
+    # `use` imports the modules without the file's top-level geometry.
+    with tempfile.NamedTemporaryFile("w", suffix=".scad", delete=False) as f:
+        f.write(
+            f"use <{os.path.abspath(SCAD)}>\nintersection() {{ shell(); lid(); }}\n"
+        )
+        wrapper = f.name
+    out = tempfile.NamedTemporaryFile(suffix=".stl", delete=False).name
+    proc = subprocess.run(
+        ["openscad", "-o", out, "-D", f"landscape={landscape}", wrapper],
+        capture_output=True,
+        text=True,
+    )
+    assert "Current top level object is empty" in proc.stderr, proc.stderr
+
+
+def test_back_gap_too_small_for_ribs_is_rejected():
+    proc, _ = render_stl("shell", defs={"back_gap": 1})
+    assert proc.returncode != 0
+    assert "ERROR" in (proc.stderr + proc.stdout).upper()
+
+
 def test_bad_window_wall_is_rejected():
     proc, _ = render_stl("shell", defs={"window_wall": 0})
     assert proc.returncode != 0
@@ -135,6 +158,22 @@ def test_portrait_orientation_still_renders():
     assert proc.returncode == 0, proc.stderr
     dx, _, _ = stl_bbox(stl)
     assert 35.0 <= dx <= 39.0, f"portrait width {dx}"
+
+
+def test_print_layout_shell_rests_on_window_face():
+    proc, stl = render_stl("shell", defs={"layout": '"print"'})
+    assert proc.returncode == 0, proc.stderr
+    assert "may not be a valid 2-manifold" not in (proc.stderr + proc.stdout)
+    # Window face down at Z=0; nothing (e.g. the foot's front edge) pokes below it.
+    assert abs(stl_z_min(stl)) < 0.01, f"print zmin {stl_z_min(stl)}"
+    render_png("all", "print_layout.png", defs={"layout": '"print"'})
+
+
+def test_print_layout_lid_panels_lie_flat():
+    proc, stl = render_stl("lid", defs={"layout": '"print"'})
+    assert proc.returncode == 0, proc.stderr
+    _, _, dz = stl_bbox(stl)
+    assert abs(dz - 2.0) < 0.01, f"lid print height {dz} (expected lid_t)"
 
 
 def test_vents_toggle_renders():
