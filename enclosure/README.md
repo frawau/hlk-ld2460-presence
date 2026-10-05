@@ -16,10 +16,14 @@ and the foot top).
 # Preview in the GUI
 openscad enclosure/ld2460_case.scad
 
-# Export each printable part to STL (binary)
-openscad -D 'part="shell"' --export-format binstl -o shell.stl enclosure/ld2460_case.scad
-openscad -D 'part="lid"'   --export-format binstl -o lid.stl   enclosure/ld2460_case.scad
+# Export each printable part to STL (binary), oriented for the print bed
+openscad -D 'part="shell"' -D 'layout="print"' --export-format binstl -o shell.stl enclosure/ld2460_case.scad
+openscad -D 'part="lid"'   -D 'layout="print"' --export-format binstl -o lid.stl   enclosure/ld2460_case.scad
 ```
+
+`layout="print"` lays the shell window-face-down and the two lid panels flat,
+side by side. Omit it (default `layout="assembled"`) to export parts as they sit
+on the monitor.
 
 `part` selects `"shell"`, `"lid"`, or `"all"` (assembled preview). Override any
 parameter with `-D name=value` (e.g. `-D 'tilt_deg=8'`).
@@ -50,14 +54,22 @@ The defaults render, but confirm against your hardware (edit the top of
    4-wire harness (pins 1, 2, 7, 8) down the wire channel to the CH343P.
 3. Fit the L-lid over the upright back + foot top.
 
-The lid is currently a press-fit cover. Secure it with a dab of glue, a strip of
-tape, or add snap tabs / small screw bosses once you have measured the printed
-fit — these are easy to add to `module lid()`.
+The lid's back panel drops into the upright's open back, behind the rear board
+ribs (which stop it), leaving `back_gap` behind the board. Each lid panel is
+`fit_clear` smaller than its opening (`fit_clear / 2` per side), so it is a slip
+fit, not a press fit: secure it with a dab of glue, a strip of tape, or add snap
+tabs / small screw bosses once you have measured the printed fit — these are
+easy to add to `module lid()`.
 
 ## Print settings
 
 - Material: **PETG / ASA / ABS** (avoid PLA near a warm/sunny screen).
-- Shell printed **window-face-down** (smooth RF face, fewest supports); lid flat.
+- Shell printed **window-face-down** (smooth RF face); lid panels flat. Use the
+  `layout="print"` exports above.
+- Shell supports: the rear hook lip lies almost flat ~8 mm above the bed (support
+  from the build plate), and the inside of the foot's rear wall is a ceiling over
+  the foot cavity (support inside, removed through the open foot top). The
+  board-edge ribs and the CH343P rib are short ledges and need none.
 - 0.2 mm layers, 3 perimeters, 20–30% infill.
 - Keep the front (window) face free of metal/metallic paint — 24 GHz passes
   through thin plastic, not metal.

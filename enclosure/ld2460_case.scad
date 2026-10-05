@@ -1,8 +1,10 @@
 // ld2460_case.scad — HLK-LD2460 monitor-top enclosure (parametric, mm)
 // Render: openscad -D part="shell" | "lid" | "all" -o out.stl ld2460_case.scad
+//         add -D layout="print" to export parts laid out for the print bed
 // Frame: X=width (centred), Y=depth (front at 0, screen at +Y), Z=up (foot base at 0)
 
 part = "all";          // "shell" | "lid" | "all"
+layout = "assembled";  // "assembled" | "print" (shell window-face-down, lid panels flat)
 $fn = 48;
 
 /* ----- Measured / to-confirm (defaults are placeholders) ----- */
@@ -34,6 +36,7 @@ snap_w       = 8;
 snap_t       = 1.6;
 snap_hook    = 1.0;
 lid_t        = 2.0;
+rib_t        = 1.0;    // board edge-rib thickness (Y)
 vent         = true;
 
 /* ----- Derived ----- */
@@ -42,8 +45,8 @@ board_z   = landscape ? ld2460_w : ld2460_h;   // board extent up the upright (Z
 cav_w     = board_x + 2 * fit_clear;           // inner width
 out_w     = cav_w + 2 * wall;                  // outer width
 front_gap = comp_height + window_clear;        // board front -> window inner
-up_in_d   = front_gap + ld2460_t + back_gap;   // upright inner depth (Y)
-up_out_d  = window_wall + up_in_d;             // upright outer depth (back open)
+up_in_d   = front_gap + ld2460_t + back_gap;   // window inner face -> lid inner face (Y)
+up_out_d  = window_wall + up_in_d + lid_t;     // upright outer depth (back open for lid)
 board_margin = 3;
 up_h      = board_z + 2 * board_margin;       // upright inner height (board + slack)
 foot_h    = wall + max(ch343_t + usb_h, 6) + 1;
@@ -51,12 +54,17 @@ foot_depth = up_out_d + ch343_w + foot_extra_depth + wall;
 // The tilted upright must sink into the foot so the two weld into one solid
 // (a flat-on-tilted contact would only touch along an edge -> non-manifold).
 plunge    = up_out_d * sin(tilt_deg) + 2;
+// The upright leans forward from the foot's front-top edge, so the foot's front
+// face is bevelled back to the window plane; this lets the shell print
+// window-face-down. The foot interior shifts back by the same to keep its wall.
+front_bevel = foot_h * tan(tilt_deg);
 
 /* ----- Guards ----- */
 assert(window_wall >= 0.8, "window_wall too thin to print (>= 0.8 mm)");
 assert(wall >= 1.2, "wall too thin (>= 1.2 mm)");
 assert(front_gap > comp_height, "window gap must exceed comp_height");
 assert(cav_w > 2 * wall, "cavity width collapses; check board size/wall");
+assert(back_gap >= fit_clear + rib_t, "back_gap too small: rear edge ribs would hit the lid");
 
 // A few slots in the foot rear wall for the (small) thermal load.
 module vent_slots() {
@@ -70,7 +78,7 @@ module vent_slots() {
 // front, side walls remain, back stays open for the lid.
 module ld2460_board_cavity() {
     translate([wall, window_wall, wall])
-        cube([out_w - 2 * wall, up_in_d + 1, up_h - 2 * wall]);
+        cube([out_w - 2 * wall, up_in_d + lid_t + 1, up_h - 2 * wall]);
 }
 
 // Per-side rib pairs that form a vertical groove gripping the left/right PCB
@@ -80,7 +88,6 @@ module ld2460_board_cavity() {
 module ld2460_edge_slots() {
     slot_y = window_wall + front_gap;          // board front face (Y)
     protrude = 1.2;                            // how far ribs reach into cavity
-    rib_t = 1.0;                               // rib thickness in Y
     z0 = wall + 1;
     zh = up_h - 2 * wall - 2;
     // left side: overlap the left wall, protrude into the cavity (+X)
@@ -92,8 +99,14 @@ module ld2460_edge_slots() {
 }
 
 module foot_interior() {
-    translate([wall, wall, wall])
-        cube([out_w - 2 * wall, foot_depth - 2 * wall, foot_h]);  // open top
+    translate([wall, wall + front_bevel, wall])
+        cube([out_w - 2 * wall, foot_depth - 2 * wall - front_bevel, foot_h]);  // open top
+}
+
+// Everything in front of the window plane (upright local frame, Y < 0): trims
+// the foot's lower front edge so the window face is the shell's flat front.
+module front_of_window() {
+    translate([-out_w, -100, -100]) cube([2 * out_w, 100, 200]);
 }
 
 // Cut (in the upright local frame): opens the cavity floor down through the
@@ -152,6 +165,7 @@ module shell() {
                 translate([-out_w / 2, 0, 0]) wire_channel();
         usb_cutout();
         vent_slots();
+        translate([0, 0, foot_h]) rotate([tilt_deg, 0, 0]) front_of_window();
     }
     translate([0, 0, foot_h])
         rotate([tilt_deg, 0, 0])
@@ -162,18 +176,44 @@ module shell() {
 // L-shaped cover: a tilted panel closing the upright's open back, plus a
 // horizontal panel closing the foot's open top behind the upright. The Type-C
 // cutout lives in the shell's foot rear wall, not here.
-module lid() {
-    // Upright back panel (tilted frame), sized to the open cavity width/height.
-    translate([0, 0, foot_h])
-        rotate([tilt_deg, 0, 0])
-            translate([-out_w / 2, 0, 0])
-                translate([wall, up_out_d - lid_t, wall])
-                    cube([out_w - 2 * wall, lid_t, up_h - 2 * wall]);
-    // Foot top panel, from behind the upright base to the foot rear wall.
-    translate([-out_w / 2 + wall, up_out_d, foot_h - lid_t])
-        cube([out_w - 2 * wall, foot_depth - up_out_d - wall, lid_t]);
+// Lid panels are fit_clear smaller than their openings (fit_clear / 2 per side).
+// Upright back panel: fills the open back behind the rear edge ribs, leaving
+// back_gap behind the board (flat, at origin).
+module lid_back_panel() {
+    cube([cav_w - fit_clear, up_h - 2 * wall - fit_clear, lid_t]);
 }
 
-if (part == "shell") shell();
-else if (part == "lid") lid();
-else { shell(); lid(); }
+// Foot top panel, from behind the upright base to the foot rear wall.
+module lid_foot_panel() {
+    cube([cav_w - fit_clear, foot_depth - up_out_d - wall - fit_clear, lid_t]);
+}
+
+module lid() {
+    c = fit_clear / 2;
+    translate([0, 0, foot_h])
+        rotate([tilt_deg, 0, 0])
+            translate([-out_w / 2 + wall + c, up_out_d, wall + c])
+                rotate([90, 0, 0]) lid_back_panel();
+    translate([-out_w / 2 + wall + c, up_out_d + c, foot_h - lid_t]) lid_foot_panel();
+}
+
+// Print layouts: shell window-face-down (smooth RF face, open back up); the two
+// lid panels flat on the bed, side by side.
+module shell_print() {
+    rotate([90, 0, 0]) rotate([-tilt_deg, 0, 0]) translate([0, 0, -foot_h]) shell();
+}
+
+module lid_print() {
+    lid_back_panel();
+    translate([0, up_h - 2 * wall + 5, 0]) lid_foot_panel();
+}
+
+if (layout == "print") {
+    if (part == "shell") shell_print();
+    else if (part == "lid") lid_print();
+    else { shell_print(); translate([out_w / 2 + 5, 0, 0]) lid_print(); }
+} else {
+    if (part == "shell") shell();
+    else if (part == "lid") lid();
+    else { shell(); lid(); }
+}
