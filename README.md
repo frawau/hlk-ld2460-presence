@@ -33,11 +33,21 @@ ld2460 --reporter text --reporter json
 
 (If you didn't install it, the equivalent is `python -m ld2460 ...`.)
 
-Options: `--port`, `--baud` (default 115200), `--ble [ADDRESS]`, `--no-reconnect`, `--reporter {text,json}`
-(repeatable), `--static-threshold` (m/s dead-band for STATIC), `--gate` (max
-metres a target may jump between frames), `--age-out` (seconds before an unseen
-track is dropped), `--smoothing` (EMA factor in (0,1]; lower = steadier,
-laggier), `--enable-on-start`.
+Options (`ld2460 --help` shows them grouped):
+
+- **Connection**, pick one: `--port DEVICE` (serial, default `/dev/ttyACM0`)
+  or `--ble [ADDRESS]` (Bluetooth LE, see below). Passing both is an error.
+- **Serial only:** `--baud` (default 115200).
+- **BLE only:** `--no-reconnect`.
+- **Decoder only** (not with `config`): `--enable-on-start`; tracking
+  `--static-threshold` (m/s dead-band for STATIC), `--gate` (max metres a
+  target may jump between frames), `--age-out` (seconds before an unseen track
+  is dropped), `--smoothing` (EMA factor in (0,1]; lower = steadier, laggier);
+  output `--reporter {text,json,http}` (repeatable), and `--server-url` /
+  `--screen-name`, which only apply with `--reporter http`.
+
+Options that don't fit the chosen connection or command are rejected rather
+than silently ignored.
 
 ## Bluetooth LE (optional)
 

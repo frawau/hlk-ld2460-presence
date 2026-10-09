@@ -19,78 +19,122 @@ from .tracking import Tracker
 _REPORTER_CHOICES = ["text", "json", "http"]
 
 
+_DEFAULT_PORT = "/dev/ttyACM0"
+_DEFAULT_BAUD = 115200
+
+# Options that only affect the live decoder, not `config`. Each defaults to
+# None so parse_args can tell whether it was given; real defaults are filled
+# in afterwards.
+_DECODER_DEFAULTS = {
+    "reconnect": True,
+    "enable_on_start": False,
+    "static_threshold": 0.05,
+    "gate": 1.0,
+    "age_out": 0.5,
+    "smoothing": 0.5,
+    "reporter": ["text"],
+    "server_url": None,
+    "screen_name": None,  # filled in with the hostname
+}
+
+
+def _flag(name: str) -> str:
+    return "--" + name.replace("_", "-")
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        prog="ld2460", description="HLK-LD2460 presence decoder"
+        prog="ld2460",
+        description="HLK-LD2460 presence decoder. Without a command, decodes the "
+        "radar stream; `config` shows or changes the radar's settings.",
     )
-    p.add_argument("--port", default="/dev/ttyACM0", help="serial device")
-    p.add_argument(
+
+    conn = p.add_argument_group(
+        "connection", f"choose one; default: serial on {_DEFAULT_PORT}"
+    )
+    which = conn.add_mutually_exclusive_group()
+    which.add_argument(
+        "--port", metavar="DEVICE", help=f"serial device (default: {_DEFAULT_PORT})"
+    )
+    which.add_argument(
         "--ble",
         nargs="?",
         const="auto",
-        default=None,
         metavar="ADDRESS",
-        help="connect over Bluetooth LE instead of serial; ADDRESS is the radar's "
-        "MAC, or omit it to use the first LD2460 found (needs the [ble] extra)",
+        help="connect over Bluetooth LE; ADDRESS is the radar's MAC, or omit it to "
+        "use the first LD2460 found (needs the [ble] extra)",
     )
-    p.add_argument(
+
+    serial = p.add_argument_group("serial options")
+    serial.add_argument(
         "--baud",
         type=int,
-        default=115200,
-        help="baud rate (LD2460 default 115200; change only if you reconfigured the module)",
+        help=f"baud rate (default: {_DEFAULT_BAUD}, the LD2460 factory setting)",
     )
-    p.add_argument(
+
+    ble = p.add_argument_group("Bluetooth options (decoder only)")
+    ble.add_argument(
         "--no-reconnect",
         dest="reconnect",
-        action="store_false",
+        action="store_const",
+        const=False,
         help="exit when the BLE link drops instead of reconnecting",
     )
-    p.add_argument(
+
+    radar = p.add_argument_group("radar (decoder only)")
+    radar.add_argument(
+        "--enable-on-start",
+        action="store_const",
+        const=True,
+        help="send the enable-reporting command after connecting",
+    )
+
+    tracking = p.add_argument_group("tracking (decoder only)")
+    tracking.add_argument(
+        "--static-threshold",
+        type=float,
+        metavar="M_PER_S",
+        help="radial speed below which motion is STATIC (default: 0.05)",
+    )
+    tracking.add_argument(
+        "--gate",
+        type=float,
+        metavar="M",
+        help="max distance a target may move between frames to stay the same "
+        "track (default: 1.0)",
+    )
+    tracking.add_argument(
+        "--age-out",
+        type=float,
+        metavar="S",
+        help="seconds before an unseen track is dropped (default: 0.5)",
+    )
+    tracking.add_argument(
+        "--smoothing",
+        type=float,
+        help="EMA factor in (0, 1] for distance/velocity; lower = steadier, "
+        "laggier (default: 0.5)",
+    )
+
+    output = p.add_argument_group("output (decoder only)")
+    output.add_argument(
         "--reporter",
         action="append",
         choices=_REPORTER_CHOICES,
-        help="output sink (repeatable); default: text",
+        help="output sink, repeatable (default: text)",
     )
-    p.add_argument(
-        "--static-threshold",
-        type=float,
-        default=0.05,
-        help="radial speed (m/s) below which motion is STATIC",
-    )
-    p.add_argument(
-        "--gate",
-        type=float,
-        default=1.0,
-        help="max metres a target may move between frames to stay the same track",
-    )
-    p.add_argument(
-        "--age-out",
-        type=float,
-        default=0.5,
-        help="seconds before an unseen track is dropped",
-    )
-    p.add_argument(
-        "--smoothing",
-        type=float,
-        default=0.5,
-        help="EMA factor in (0, 1] for distance/velocity (lower = steadier, laggier)",
-    )
-    p.add_argument(
+    output.add_argument(
         "--server-url",
-        default=None,
-        help="dashboard server URL for --reporter http (e.g. http://localhost:8099)",
+        metavar="URL",
+        help="dashboard server for --reporter http (e.g. http://localhost:8099)",
     )
-    p.add_argument(
+    output.add_argument(
         "--screen-name",
-        default=socket.gethostname(),
+        metavar="NAME",
         help="screen name sent with --reporter http (default: hostname)",
     )
-    p.add_argument(
-        "--enable-on-start",
-        action="store_true",
-        help="send the enable-reporting command before listening",
-    )
-    _add_config_parser(p.add_subparsers(dest="command", metavar="COMMAND"))
+
+    _add_config_parser(p.add_subparsers(dest="command", metavar="[COMMAND]"))
     argv = list(sys.argv[1:] if argv is None else argv)
     # `--ble config ...`: argparse would take "config" as the address.
     for i, arg in enumerate(argv[:-1]):
@@ -98,16 +142,44 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             argv.insert(i + 1, "auto")
             break
     args = p.parse_args(argv)
-    if args.command == "config" and args.config_action == "set":
-        if not config_changes(args):
-            p.error("config set needs at least one setting to change")
-    if not args.reporter:
-        args.reporter = ["text"]
-    if not 0.0 < args.smoothing <= 1.0:
-        p.error("--smoothing must be in the range (0, 1]")
-    if "http" in args.reporter and not args.server_url:
-        p.error("--reporter http requires --server-url")
+    _check_combinations(p, args)
+    _fill_defaults(args)
     return args
+
+
+def _check_combinations(p: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    if args.ble is not None and args.baud is not None:
+        p.error("--baud only applies to a serial connection, not --ble")
+    if args.command == "config":
+        given = [_flag(k) for k in _DECODER_DEFAULTS if getattr(args, k) is not None]
+        if given:
+            verb = "applies" if len(given) == 1 else "apply"
+            p.error(f"{', '.join(given)} only {verb} to the decoder, not config")
+        if args.config_action == "set" and not config_changes(args):
+            p.error("config set needs at least one setting to change")
+        return
+    if args.reconnect is not None and args.ble is None:
+        p.error("--no-reconnect only applies to --ble")
+    if args.smoothing is not None and not 0.0 < args.smoothing <= 1.0:
+        p.error("--smoothing must be in the range (0, 1]")
+    if "http" in (args.reporter or []):
+        if not args.server_url:
+            p.error("--reporter http requires --server-url")
+    else:
+        for name in ("server_url", "screen_name"):
+            if getattr(args, name) is not None:
+                p.error(f"{_flag(name)} only applies with --reporter http")
+
+
+def _fill_defaults(args: argparse.Namespace) -> None:
+    if args.ble is None:
+        args.port = args.port or _DEFAULT_PORT
+        args.baud = args.baud or _DEFAULT_BAUD
+    for name, default in _DECODER_DEFAULTS.items():
+        if getattr(args, name) is None:
+            setattr(args, name, default)
+    if args.screen_name is None:
+        args.screen_name = socket.gethostname()
 
 
 def _add_config_parser(sub) -> None:

@@ -183,3 +183,46 @@ def test_bare_ble_before_config_means_auto():
     args = parse_args(["--ble", "config", "show"])
     assert args.ble == "auto"
     assert args.command == "config" and args.config_action == "show"
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--port", "/dev/ttyUSB0", "--ble"],
+        ["--ble", "89:EC:12:F6:6A:62", "--port", "/dev/ttyUSB0"],
+        ["--ble", "--baud", "9600"],  # baud is serial-only
+        ["--no-reconnect"],  # BLE-only
+        ["--port", "/dev/ttyUSB0", "--no-reconnect"],
+        ["--server-url", "http://x:8099"],  # needs --reporter http
+        ["--screen-name", "hall"],
+        ["--reporter", "json", "config", "show"],  # decoder-only with config
+        ["--gate", "2", "config", "show"],
+        ["--enable-on-start", "config", "show"],
+        ["--ble", "--no-reconnect", "config", "show"],
+    ],
+)
+def test_conflicting_options_rejected(argv):
+    with pytest.raises(SystemExit):
+        parse_args(argv)
+
+
+def test_serial_defaults_filled_when_not_using_ble():
+    args = parse_args(["--baud", "230400"])
+    assert (args.port, args.baud, args.ble) == ("/dev/ttyACM0", 230400, None)
+
+
+def test_ble_leaves_serial_options_unset():
+    args = parse_args(["--ble"])
+    assert args.port is None and args.baud is None
+
+
+def test_http_reporter_with_screen_name():
+    args = parse_args(
+        ["--reporter", "http", "--server-url", "http://x:8099", "--screen-name", "hall"]
+    )
+    assert (args.server_url, args.screen_name) == ("http://x:8099", "hall")
+
+
+def test_config_over_serial_with_baud():
+    args = parse_args(["--port", "/dev/ttyUSB0", "--baud", "9600", "config", "show"])
+    assert (args.port, args.baud, args.command) == ("/dev/ttyUSB0", 9600, "config")
