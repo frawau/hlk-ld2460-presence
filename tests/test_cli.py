@@ -60,3 +60,16 @@ def test_build_tracker_threads_flags():
 def test_smoothing_out_of_range_rejected():
     with pytest.raises(SystemExit):
         parse_args(["--smoothing", "1.5"])
+
+
+def test_ble_defaults_off():
+    assert parse_args([]).ble is None
+
+
+def test_ble_without_value_means_auto():
+    assert parse_args(["--ble"]).ble == "auto"
+
+
+def test_ble_address():
+    args = parse_args(["--ble", "89:EC:12:F6:6A:62"])
+    assert args.ble == "89:EC:12:F6:6A:62"

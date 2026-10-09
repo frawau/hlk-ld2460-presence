@@ -11,7 +11,7 @@ from .protocol import enable_reporting
 from .reporters import Reporter
 from .reporters.console import ConsoleJsonReporter, ConsoleTextReporter
 from .tracking import Tracker
-from .transport import open_byte_stream
+from .transport import open_transport
 
 _REPORTER_CHOICES = ["text", "json", "http"]
 
@@ -21,6 +21,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         prog="ld2460", description="HLK-LD2460 presence decoder"
     )
     p.add_argument("--port", default="/dev/ttyACM0", help="serial device")
+    p.add_argument(
+        "--ble",
+        nargs="?",
+        const="auto",
+        default=None,
+        metavar="ADDRESS",
+        help="connect over Bluetooth LE instead of serial; ADDRESS is the radar's "
+        "MAC, or omit it to use the first LD2460 found (needs the [ble] extra)",
+    )
     p.add_argument(
         "--baud",
         type=int,
@@ -106,7 +115,7 @@ def build_tracker(args: argparse.Namespace) -> Tracker:
 
 
 async def _amain(args: argparse.Namespace) -> None:
-    reader, writer = await open_byte_stream(args.port, args.baud)
+    reader, writer = await open_transport(args.port, args.baud, ble=args.ble)
     try:
         if args.enable_on_start:
             writer.write(enable_reporting())

@@ -99,6 +99,7 @@ async def stream_presence(
     port: str = "/dev/ttyACM0",
     baud: int = 115200,
     *,
+    ble: str | None = None,
     tracker: Tracker | None = None,
     enable_on_start: bool = False,
     clock: Callable[[], float] = time.monotonic,
@@ -106,18 +107,21 @@ async def stream_presence(
     stop=None,
     **tracker_kwargs,
 ) -> AsyncIterator[PresenceReport]:
-    """Open the serial port and yield PresenceReports — the one-call integration.
+    """Open the radar and yield PresenceReports — the one-call integration.
+
+    Reads the serial `port` by default; pass ``ble=`` a MAC address (or
+    ``"auto"``) to connect over Bluetooth LE instead (needs the [ble] extra).
 
     Pass ``tracker=`` a preconfigured Tracker, or tracker_kwargs
     (static_threshold, gate, age_out, smoothing, min_samples) to build one.
-    Closes the port on exit::
+    Closes the connection on exit::
 
         async for report in stream_presence("/dev/ttyACM0", static_threshold=0.1):
             rdm.handle(report)
     """
-    from .transport import open_byte_stream
+    from .transport import open_transport
 
-    reader, writer = await open_byte_stream(port, baud)
+    reader, writer = await open_transport(port, baud, ble=ble)
     try:
         if enable_on_start:
             writer.write(enable_reporting())

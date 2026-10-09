@@ -133,3 +133,38 @@ async def test_stream_presence_opens_port_and_yields(monkeypatch):
     ]
     assert len(reports) == 2
     assert reports[-1].count == 1
+
+
+async def test_stream_presence_uses_ble_when_requested(monkeypatch):
+    frames = [build_report_frame([(0.0, 2.0)])]
+    reader = FakeReader(frames)
+    opened = []
+
+    class FakeWriter:
+        def write(self, _b):
+            pass
+
+        async def drain(self):
+            pass
+
+        def close(self):
+            pass
+
+        async def wait_closed(self):
+            pass
+
+    async def fake_open_ble(address):
+        opened.append(address)
+        return reader, FakeWriter()
+
+    async def no_serial(*_a, **_k):
+        raise AssertionError("serial must not be opened")
+
+    import ld2460.ble
+    import ld2460.transport
+
+    monkeypatch.setattr(ld2460.ble, "open_ble_stream", fake_open_ble)
+    monkeypatch.setattr(ld2460.transport, "open_byte_stream", no_serial)
+    reports = [r async for r in stream_presence(ble="89:EC:12:F6:6A:62")]
+    assert opened == ["89:EC:12:F6:6A:62"]
+    assert len(reports) == 1
