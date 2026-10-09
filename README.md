@@ -57,18 +57,34 @@ Install the extra and pass `--ble`:
 ```bash
 pip install -e ".[ble]"              # adds bleak
 
-ld2460 --ble                         # first LD2460 found by scanning
+ld2460 --ble                         # the only LD2460 in range
+ld2460 --ble best                    # the LD2460 with the strongest signal
 ld2460 --ble 89:EC:12:F6:6A:62       # a specific radar
 ```
 
-From code: `stream_presence(ble="89:EC:12:F6:6A:62")` (or `ble="auto"`).
+Nothing needs to be set up beforehand: `--ble` scans, connects, pairs if the
+radar isn't paired yet, and starts streaming. Without an address it scans for
+6 s; if more than one LD2460 answers, it lists them and exits (status 2) so
+you can pick one, or use `--ble best` to take the strongest:
+
+```
+ld2460: found 2 LD2460 radars; choose one with --ble ADDRESS:
+  89:EC:12:F6:6A:62  LD2460-6A62  -63 dBm
+  89:EC:12:F6:11:22  LD2460-1122  -80 dBm
+```
+
+With `auto` or `best`, reconnects always go back to the radar picked on the
+first connection (by MAC), even if another one has a stronger signal by then.
+
+From code: `stream_presence(ble="89:EC:12:F6:6A:62")` (or `ble="auto"` /
+`ble="best"`).
 
 Over BLE the module is a transparent UART bridge: service `FFF0` notifies the
 same report frames on `FFF1`, and command frames are written to `FFF2`
 (write-without-response). The radar only answers on a paired link, so on
 Linux the tool registers a temporary BlueZ agent that accepts the Just Works
-pairing (no PIN) the first time; the bond is kept by BlueZ, and
-`bluetoothctl remove <MAC>` undoes it. The user running `ld2460` must be
+pairing (no PIN) when needed. BlueZ remembers the pairing, which just skips
+that step next time; `bluetoothctl remove <MAC>` forgets it. The user running `ld2460` must be
 allowed to register a BlueZ agent (the default `pi` user is).
 
 A dropped BLE link, or a radar that isn't reachable yet, is retried
@@ -86,7 +102,7 @@ the same command protocol; put the connection options before `config`:
 
 ```bash
 ld2460 config show                              # serial, /dev/ttyACM0
-ld2460 --ble config show --json                 # first LD2460 over BLE
+ld2460 --ble config show --json                 # the only LD2460 in range
 
 ld2460 --ble config set --range 4.5 --angles -45 45
 ld2460 --port /dev/ttyUSB0 config set --mount wall --height 2.2 --tilt 25

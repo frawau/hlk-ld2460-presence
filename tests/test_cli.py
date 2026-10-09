@@ -226,3 +226,30 @@ def test_http_reporter_with_screen_name():
 def test_config_over_serial_with_baud():
     args = parse_args(["--port", "/dev/ttyUSB0", "--baud", "9600", "config", "show"])
     assert (args.port, args.baud, args.command) == ("/dev/ttyUSB0", 9600, "config")
+
+
+def test_main_lists_radars_and_exits(monkeypatch, capsys):
+    import ld2460.__main__ as cli
+    from ld2460.ble import FoundRadar, MultipleRadarsError
+
+    async def fake_config_main(args):
+        raise MultipleRadarsError(
+            [
+                FoundRadar("89:EC:12:F6:6A:62", "LD2460-6A62", -63, None),
+                FoundRadar("89:EC:12:F6:11:22", "LD2460-1122", -80, None),
+            ]
+        )
+
+    monkeypatch.setattr(cli, "_config_main", fake_config_main)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--ble", "config", "show"])
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert "89:EC:12:F6:6A:62  LD2460-6A62  -63 dBm" in err
+    assert "89:EC:12:F6:11:22  LD2460-1122  -80 dBm" in err
+    assert "--ble ADDRESS" in err
+
+
+def test_ble_best():
+    assert parse_args(["--ble", "best"]).ble == "best"
+    assert parse_args(["--ble", "best", "config", "show"]).ble == "best"

@@ -266,3 +266,34 @@ async def test_serial_does_not_reconnect_by_default(monkeypatch):
     monkeypatch.setattr(ld2460.transport, "open_byte_stream", fake_open)
     reports = [r async for r in stream_presence("/dev/x")]
     assert len(reports) == 1 and opens == ["/dev/x"]
+
+
+async def test_multiple_radars_error_is_not_retried(monkeypatch):
+    from ld2460.ble import MultipleRadarsError
+
+    _fake_ble_opener(monkeypatch, [MultipleRadarsError([]), [build_report_frame([])]])
+    with pytest.raises(MultipleRadarsError):
+        async for _ in stream_presence(ble="auto", retry_delay=0):
+            pass
+
+
+@pytest.mark.parametrize("mode", ["auto", "best"])
+async def test_discovery_reconnects_to_the_radar_it_found(monkeypatch, mode):
+    import ld2460.ble
+
+    frame = build_report_frame([(0.0, 2.0)])
+    addresses = []
+
+    class AddressedWriter(_NullWriter):
+        address = "89:EC:12:F6:6A:62"
+
+    async def fake_open(address):
+        addresses.append(address)
+        return FakeReader([frame]), AddressedWriter()
+
+    monkeypatch.setattr(ld2460.ble, "open_ble_stream", fake_open)
+    stop = asyncio.Event()
+    async for _ in stream_presence(ble=mode, stop=stop, retry_delay=0):
+        if len(addresses) == 2:
+            stop.set()
+    assert addresses == [mode, "89:EC:12:F6:6A:62"]

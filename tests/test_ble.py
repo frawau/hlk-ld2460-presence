@@ -118,3 +118,73 @@ async def test_iter_reports_over_ble_stream():
 )
 def test_is_ld2460_name(name, expected):
     assert is_ld2460_name(name) is expected
+
+
+def _found(*macs):
+    from ld2460.ble import FoundRadar
+
+    return [
+        FoundRadar(m, f"LD2460-{m[-5:].replace(':', '')}", -60, object()) for m in macs
+    ]
+
+
+async def test_auto_with_one_radar_picks_it(monkeypatch):
+    import ld2460.ble as ble
+
+    radars = _found("89:EC:12:F6:6A:62")
+
+    async def fake_find(timeout):
+        return radars
+
+    monkeypatch.setattr(ble, "find_ld2460_devices", fake_find)
+    assert await ble.resolve_device("auto", timeout=1) is radars[0].device
+
+
+async def test_auto_with_several_radars_lists_them(monkeypatch):
+    import ld2460.ble as ble
+
+    radars = _found("89:EC:12:F6:6A:62", "89:EC:12:F6:11:22")
+
+    async def fake_find(timeout):
+        return radars
+
+    monkeypatch.setattr(ble, "find_ld2460_devices", fake_find)
+    with pytest.raises(ble.MultipleRadarsError) as err:
+        await ble.resolve_device("auto", timeout=1)
+    assert err.value.radars == radars
+    assert "89:EC:12:F6:11:22" in str(err.value)
+
+
+async def test_auto_with_no_radar_is_a_connection_error(monkeypatch):
+    import ld2460.ble as ble
+
+    async def fake_find(timeout):
+        return []
+
+    monkeypatch.setattr(ble, "find_ld2460_devices", fake_find)
+    with pytest.raises(ConnectionError):
+        await ble.resolve_device("auto", timeout=1)
+
+
+async def test_best_picks_strongest_signal(monkeypatch):
+    import ld2460.ble as ble
+
+    weak, strong = _found("89:EC:12:F6:11:22", "89:EC:12:F6:6A:62")
+    weak.rssi, strong.rssi = -85, -55
+
+    async def fake_find(timeout):
+        return [weak, strong]  # order must not matter
+
+    monkeypatch.setattr(ble, "find_ld2460_devices", fake_find)
+    assert await ble.resolve_device("best", timeout=1) is strong.device
+
+
+async def test_best_with_no_radar_is_a_connection_error(monkeypatch):
+    import ld2460.ble as ble
+
+    async def fake_find(timeout):
+        return []
+
+    monkeypatch.setattr(ble, "find_ld2460_devices", fake_find)
+    with pytest.raises(ConnectionError):
+        await ble.resolve_device("best", timeout=1)

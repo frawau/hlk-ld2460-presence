@@ -14,10 +14,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import sys
+from dataclasses import dataclass
 
 SERVICE_UUID = "0000fff0-0000-1000-8000-00805f9b34fb"
 NOTIFY_CHAR_UUID = "0000fff1-0000-1000-8000-00805f9b34fb"
 WRITE_CHAR_UUID = "0000fff2-0000-1000-8000-00805f9b34fb"
+
+# `address` values that scan instead of naming a MAC.
+DISCOVERY_MODES = ("auto", "best")
 
 
 def is_ld2460_name(name: str | None) -> bool:
@@ -35,8 +39,9 @@ class BleByteStream:
     been read.
     """
 
-    def __init__(self, client) -> None:
+    def __init__(self, client, address: str | None = None) -> None:
         self._client = client
+        self.address = address
         self._chunks: asyncio.Queue[bytes] = asyncio.Queue()
         self._pending = b""
         self._eof = False
@@ -86,14 +91,67 @@ class BleByteStream:
             await self._close_task
 
 
-async def find_ld2460(timeout: float = 10.0):
-    """Scan and return the first advertising LD2460 BLEDevice, or None."""
+@dataclass
+class FoundRadar:
+    """An LD2460 seen while scanning."""
+
+    address: str
+    name: str
+    rssi: int
+    device: object  # bleak BLEDevice
+
+
+class MultipleRadarsError(LookupError):
+    """Auto-discovery found more than one LD2460; the caller must pick one."""
+
+    def __init__(self, radars: list[FoundRadar]) -> None:
+        self.radars = radars
+        listing = "".join(f"\n  {r.address}  {r.name}  {r.rssi} dBm" for r in radars)
+        super().__init__(
+            f"found {len(radars)} LD2460 radars; choose one with --ble ADDRESS:"
+            + listing
+        )
+
+
+async def find_ld2460_devices(timeout: float = 6.0) -> list[FoundRadar]:
+    """Scan for `timeout` seconds and return every advertising LD2460."""
     from bleak import BleakScanner
 
-    return await BleakScanner.find_device_by_filter(
-        lambda dev, adv: is_ld2460_name(adv.local_name or dev.name),
-        timeout=timeout,
-    )
+    found = await BleakScanner.discover(timeout=timeout, return_adv=True)
+    radars = [
+        FoundRadar(dev.address, adv.local_name or dev.name, adv.rssi, dev)
+        for dev, adv in found.values()
+        if is_ld2460_name(adv.local_name or dev.name)
+    ]
+    return sorted(radars, key=lambda r: r.rssi, reverse=True)
+
+
+async def resolve_device(
+    address: str, *, timeout: float = 20.0, scan_time: float = 6.0
+):
+    """Return the BLEDevice for a MAC address, or pick one by scanning.
+
+    ``"auto"`` and ``"best"`` scan for the full `scan_time` so every radar in
+    range is seen; none raises ConnectionError. With ``"auto"`` several radars
+    raise MultipleRadarsError listing them; ``"best"`` takes the strongest
+    signal.
+    """
+    if address in DISCOVERY_MODES:
+        radars = await find_ld2460_devices(min(scan_time, timeout))
+        if not radars:
+            raise ConnectionError("no LD2460 found while scanning")
+        if address == "best":
+            return max(radars, key=lambda r: r.rssi).device
+        if len(radars) > 1:
+            raise MultipleRadarsError(radars)
+        return radars[0].device
+
+    from bleak import BleakScanner
+
+    device = await BleakScanner.find_device_by_address(address, timeout=timeout)
+    if device is None:
+        raise ConnectionError(f"LD2460 {address} not found while scanning")
+    return device
 
 
 async def open_ble_stream(
@@ -104,21 +162,17 @@ async def open_ble_stream(
 ):
     """Connect to an LD2460 over BLE and return ``(reader, writer)``.
 
-    `address` is the MAC address, or ``"auto"`` for the first LD2460 found by
-    scanning. With `pair` (default) on Linux, a temporary BlueZ agent accepts
-    the Just Works pairing the radar demands; once bonded, later connections
-    reuse the stored keys. Both returned objects are the same `BleByteStream`.
+    `address` is the MAC address, ``"auto"`` for the only LD2460 in range
+    (MultipleRadarsError if there are several), or ``"best"`` for the one with
+    the strongest signal. Pairing happens on the fly:
+    with `pair` (default) on Linux, a temporary BlueZ agent accepts the Just
+    Works pairing the radar demands; BlueZ keeps the bond afterwards, so later
+    connections skip that step. Both returned objects are the same
+    `BleByteStream`; its ``address`` is the MAC actually connected.
     """
-    from bleak import BleakClient, BleakScanner
+    from bleak import BleakClient
 
-    if address == "auto":
-        device = await find_ld2460(timeout)
-        if device is None:
-            raise ConnectionError("no LD2460 found while scanning")
-    else:
-        device = await BleakScanner.find_device_by_address(address, timeout=timeout)
-        if device is None:
-            raise ConnectionError(f"LD2460 {address} not found while scanning")
+    device = await resolve_device(address, timeout=timeout)
 
     agent = contextlib.nullcontext()
     if pair and sys.platform.startswith("linux"):
@@ -133,7 +187,7 @@ async def open_ble_stream(
             stream.on_disconnect(client)
 
     client = BleakClient(device, disconnected_callback=_disconnected, timeout=timeout)
-    stream = BleByteStream(client)
+    stream = BleByteStream(client, address=device.address)
     async with agent:
         await client.connect()
         try:
