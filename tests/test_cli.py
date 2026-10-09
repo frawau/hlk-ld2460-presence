@@ -73,3 +73,11 @@ def test_ble_without_value_means_auto():
 def test_ble_address():
     args = parse_args(["--ble", "89:EC:12:F6:6A:62"])
     assert args.ble == "89:EC:12:F6:6A:62"
+
+
+def test_reconnect_on_by_default():
+    assert parse_args(["--ble"]).reconnect is True
+
+
+def test_no_reconnect_flag():
+    assert parse_args(["--ble", "--no-reconnect"]).reconnect is False

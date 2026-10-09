@@ -33,7 +33,7 @@ ld2460 --reporter text --reporter json
 
 (If you didn't install it, the equivalent is `python -m ld2460 ...`.)
 
-Options: `--port`, `--baud` (default 115200), `--ble [ADDRESS]`, `--reporter {text,json}`
+Options: `--port`, `--baud` (default 115200), `--ble [ADDRESS]`, `--no-reconnect`, `--reporter {text,json}`
 (repeatable), `--static-threshold` (m/s dead-band for STATIC), `--gate` (max
 metres a target may jump between frames), `--age-out` (seconds before an unseen
 track is dropped), `--smoothing` (EMA factor in (0,1]; lower = steadier,
@@ -59,8 +59,14 @@ same report frames on `FFF1`, and command frames are written to `FFF2`
 Linux the tool registers a temporary BlueZ agent that accepts the Just Works
 pairing (no PIN) the first time; the bond is kept by BlueZ, and
 `bluetoothctl remove <MAC>` undoes it. The user running `ld2460` must be
-allowed to register a BlueZ agent (the default `pi` user is). A BLE disconnect
-ends the stream, just like EOF on the serial port.
+allowed to register a BlueZ agent (the default `pi` user is).
+
+A dropped BLE link, or a radar that isn't reachable yet, is retried
+automatically: first after 2 s, doubling up to 60 s, and back to 2 s once
+reports flow again. Each retry logs a warning on stderr. `--no-reconnect`
+exits on the first disconnect instead. From code the same behaviour is
+`stream_presence(ble=..., reconnect=True, retry_delay=2.0, max_retry_delay=60.0)`
+(on by default for BLE, off for serial).
 
 ## Use as a library
 

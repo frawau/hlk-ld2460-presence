@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import signal
 import socket
+import time
 from collections.abc import Sequence
 
-from .app import run_pipeline
-from .protocol import enable_reporting
+from .app import deliver_reports, stream_presence
 from .reporters import Reporter
 from .reporters.console import ConsoleJsonReporter, ConsoleTextReporter
 from .tracking import Tracker
-from .transport import open_transport
 
 _REPORTER_CHOICES = ["text", "json", "http"]
 
@@ -35,6 +35,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         type=int,
         default=115200,
         help="baud rate (LD2460 default 115200; change only if you reconfigured the module)",
+    )
+    p.add_argument(
+        "--no-reconnect",
+        dest="reconnect",
+        action="store_false",
+        help="exit when the BLE link drops instead of reconnecting",
     )
     p.add_argument(
         "--reporter",
@@ -115,33 +121,40 @@ def build_tracker(args: argparse.Namespace) -> Tracker:
 
 
 async def _amain(args: argparse.Namespace) -> None:
-    reader, writer = await open_transport(args.port, args.baud, ble=args.ble)
-    try:
-        if args.enable_on_start:
-            writer.write(enable_reporting())
-            await writer.drain()
-        tracker = build_tracker(args)
-        reporters = build_reporters(args)
-
-        stop = asyncio.Event()
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            try:
-                loop.add_signal_handler(sig, stop.set)
-            except NotImplementedError:  # pragma: no cover - non-POSIX
-                pass
-
-        await run_pipeline(reader, tracker, reporters, stop=stop)
-    finally:
-        writer.close()
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
         try:
-            await writer.wait_closed()
-        except Exception:  # pragma: no cover - best-effort close
+            loop.add_signal_handler(sig, stop.set)
+        except NotImplementedError:  # pragma: no cover - non-POSIX
             pass
+
+    reports = stream_presence(
+        args.port,
+        args.baud,
+        ble=args.ble,
+        reconnect=args.reconnect and args.ble is not None,
+        tracker=build_tracker(args),
+        enable_on_start=args.enable_on_start,
+        stop=stop,
+    )
+    await deliver_reports(reports, build_reporters(args))
+
+
+def _setup_logging() -> None:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s: %(message)s", "%Y-%m-%dT%H:%M:%SZ"
+    )
+    formatter.converter = time.gmtime
+    handler.setFormatter(formatter)
+    logging.basicConfig(level=logging.WARNING, handlers=[handler])
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    asyncio.run(_amain(parse_args(argv)))
+    args = parse_args(argv)
+    _setup_logging()
+    asyncio.run(_amain(args))
 
 
 if __name__ == "__main__":
