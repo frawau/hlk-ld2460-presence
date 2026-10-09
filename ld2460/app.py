@@ -6,7 +6,7 @@ import time
 from collections.abc import AsyncIterator, Callable, Sequence
 from typing import Protocol
 
-from .ble import MultipleRadarsError
+from .ble import DISCOVERY_MODES, MultipleRadarsError
 from .model import PresenceReport
 from .protocol import FrameReader, enable_reporting
 from .reporters import Reporter
@@ -179,8 +179,9 @@ async def stream_presence(
     disconnect ends the stream and a failed connect raises.
 
     ``ble="auto"`` needs exactly one LD2460 in range; with several it raises
-    `ld2460.ble.MultipleRadarsError` (never retried). Reconnects go to the
-    radar found on the first connection.
+    `ld2460.ble.MultipleRadarsError` (never retried). ``ble="best"`` picks the
+    strongest signal. Either way, reconnects go to the radar found on the
+    first connection.
     """
     from . import transport
 
@@ -205,7 +206,7 @@ async def stream_presence(
         if opened is None:  # stop fired while connecting
             return
         reader, writer = opened
-        if ble == "auto" and getattr(writer, "address", None):
+        if ble in DISCOVERY_MODES and getattr(writer, "address", None):
             ble = writer.address  # reconnect to this radar, not whichever is first
         try:
             if enable_on_start:

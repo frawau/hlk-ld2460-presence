@@ -58,13 +58,14 @@ Install the extra and pass `--ble`:
 pip install -e ".[ble]"              # adds bleak
 
 ld2460 --ble                         # the only LD2460 in range
+ld2460 --ble best                    # the LD2460 with the strongest signal
 ld2460 --ble 89:EC:12:F6:6A:62       # a specific radar
 ```
 
 Nothing needs to be set up beforehand: `--ble` scans, connects, pairs if the
 radar isn't paired yet, and starts streaming. Without an address it scans for
 6 s; if more than one LD2460 answers, it lists them and exits (status 2) so
-you can pick one:
+you can pick one, or use `--ble best` to take the strongest:
 
 ```
 ld2460: found 2 LD2460 radars; choose one with --ble ADDRESS:
@@ -72,9 +73,11 @@ ld2460: found 2 LD2460 radars; choose one with --ble ADDRESS:
   89:EC:12:F6:11:22  LD2460-1122  -80 dBm
 ```
 
-Reconnects always go back to the radar picked on the first connection.
+With `auto` or `best`, reconnects always go back to the radar picked on the
+first connection (by MAC), even if another one has a stronger signal by then.
 
-From code: `stream_presence(ble="89:EC:12:F6:6A:62")` (or `ble="auto"`).
+From code: `stream_presence(ble="89:EC:12:F6:6A:62")` (or `ble="auto"` /
+`ble="best"`).
 
 Over BLE the module is a transparent UART bridge: service `FFF0` notifies the
 same report frames on `FFF1`, and command frames are written to `FFF2`

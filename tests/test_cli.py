@@ -248,3 +248,8 @@ def test_main_lists_radars_and_exits(monkeypatch, capsys):
     assert "89:EC:12:F6:6A:62  LD2460-6A62  -63 dBm" in err
     assert "89:EC:12:F6:11:22  LD2460-1122  -80 dBm" in err
     assert "--ble ADDRESS" in err
+
+
+def test_ble_best():
+    assert parse_args(["--ble", "best"]).ble == "best"
+    assert parse_args(["--ble", "best", "config", "show"]).ble == "best"

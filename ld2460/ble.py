@@ -20,6 +20,9 @@ SERVICE_UUID = "0000fff0-0000-1000-8000-00805f9b34fb"
 NOTIFY_CHAR_UUID = "0000fff1-0000-1000-8000-00805f9b34fb"
 WRITE_CHAR_UUID = "0000fff2-0000-1000-8000-00805f9b34fb"
 
+# `address` values that scan instead of naming a MAC.
+DISCOVERY_MODES = ("auto", "best")
+
 
 def is_ld2460_name(name: str | None) -> bool:
     """True if an advertised name looks like an LD2460 (e.g. ``LD2460-6A62``)."""
@@ -126,16 +129,19 @@ async def find_ld2460_devices(timeout: float = 6.0) -> list[FoundRadar]:
 async def resolve_device(
     address: str, *, timeout: float = 20.0, scan_time: float = 6.0
 ):
-    """Return the BLEDevice for a MAC address, or for the only LD2460 nearby.
+    """Return the BLEDevice for a MAC address, or pick one by scanning.
 
-    With ``"auto"`` the scan runs the full `scan_time` so every radar in range
-    is seen: one radar is used, none raises ConnectionError, and several raise
-    MultipleRadarsError listing them.
+    ``"auto"`` and ``"best"`` scan for the full `scan_time` so every radar in
+    range is seen; none raises ConnectionError. With ``"auto"`` several radars
+    raise MultipleRadarsError listing them; ``"best"`` takes the strongest
+    signal.
     """
-    if address == "auto":
+    if address in DISCOVERY_MODES:
         radars = await find_ld2460_devices(min(scan_time, timeout))
         if not radars:
             raise ConnectionError("no LD2460 found while scanning")
+        if address == "best":
+            return max(radars, key=lambda r: r.rssi).device
         if len(radars) > 1:
             raise MultipleRadarsError(radars)
         return radars[0].device
@@ -156,8 +162,9 @@ async def open_ble_stream(
 ):
     """Connect to an LD2460 over BLE and return ``(reader, writer)``.
 
-    `address` is the MAC address, or ``"auto"`` for the only LD2460 in range
-    (MultipleRadarsError if there are several). Pairing happens on the fly:
+    `address` is the MAC address, ``"auto"`` for the only LD2460 in range
+    (MultipleRadarsError if there are several), or ``"best"`` for the one with
+    the strongest signal. Pairing happens on the fly:
     with `pair` (default) on Linux, a temporary BlueZ agent accepts the Just
     Works pairing the radar demands; BlueZ keeps the bond afterwards, so later
     connections skip that step. Both returned objects are the same

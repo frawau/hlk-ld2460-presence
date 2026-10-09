@@ -62,9 +62,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         nargs="?",
         const="auto",
         metavar="ADDRESS",
-        help="connect over Bluetooth LE, pairing on first use; ADDRESS is the "
-        "radar's MAC, or omit it to use the only LD2460 in range (if several are "
-        "found they are listed and ld2460 exits) (needs the [ble] extra)",
+        help="connect over Bluetooth LE, pairing on first use (needs the [ble] "
+        "extra). ADDRESS is the radar's MAC; 'best' picks the strongest signal; "
+        "omitted (or 'auto') uses the only LD2460 in range, and lists them and "
+        "exits if there are several. Reconnects stay on the radar picked first.",
     )
 
     serial = p.add_argument_group("serial options")

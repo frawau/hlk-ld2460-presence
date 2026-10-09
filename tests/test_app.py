@@ -277,7 +277,8 @@ async def test_multiple_radars_error_is_not_retried(monkeypatch):
             pass
 
 
-async def test_auto_reconnects_to_the_radar_it_found(monkeypatch):
+@pytest.mark.parametrize("mode", ["auto", "best"])
+async def test_discovery_reconnects_to_the_radar_it_found(monkeypatch, mode):
     import ld2460.ble
 
     frame = build_report_frame([(0.0, 2.0)])
@@ -292,7 +293,7 @@ async def test_auto_reconnects_to_the_radar_it_found(monkeypatch):
 
     monkeypatch.setattr(ld2460.ble, "open_ble_stream", fake_open)
     stop = asyncio.Event()
-    async for _ in stream_presence(ble="auto", stop=stop, retry_delay=0):
+    async for _ in stream_presence(ble=mode, stop=stop, retry_delay=0):
         if len(addresses) == 2:
             stop.set()
-    assert addresses == ["auto", "89:EC:12:F6:6A:62"]
+    assert addresses == [mode, "89:EC:12:F6:6A:62"]

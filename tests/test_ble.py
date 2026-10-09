@@ -164,3 +164,27 @@ async def test_auto_with_no_radar_is_a_connection_error(monkeypatch):
     monkeypatch.setattr(ble, "find_ld2460_devices", fake_find)
     with pytest.raises(ConnectionError):
         await ble.resolve_device("auto", timeout=1)
+
+
+async def test_best_picks_strongest_signal(monkeypatch):
+    import ld2460.ble as ble
+
+    weak, strong = _found("89:EC:12:F6:11:22", "89:EC:12:F6:6A:62")
+    weak.rssi, strong.rssi = -85, -55
+
+    async def fake_find(timeout):
+        return [weak, strong]  # order must not matter
+
+    monkeypatch.setattr(ble, "find_ld2460_devices", fake_find)
+    assert await ble.resolve_device("best", timeout=1) is strong.device
+
+
+async def test_best_with_no_radar_is_a_connection_error(monkeypatch):
+    import ld2460.ble as ble
+
+    async def fake_find(timeout):
+        return []
+
+    monkeypatch.setattr(ble, "find_ld2460_devices", fake_find)
+    with pytest.raises(ConnectionError):
+        await ble.resolve_device("best", timeout=1)
