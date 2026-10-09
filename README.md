@@ -33,11 +33,86 @@ ld2460 --reporter text --reporter json
 
 (If you didn't install it, the equivalent is `python -m ld2460 ...`.)
 
-Options: `--port`, `--baud` (default 115200), `--reporter {text,json}`
-(repeatable), `--static-threshold` (m/s dead-band for STATIC), `--gate` (max
-metres a target may jump between frames), `--age-out` (seconds before an unseen
-track is dropped), `--smoothing` (EMA factor in (0,1]; lower = steadier,
-laggier), `--enable-on-start`.
+Options (`ld2460 --help` shows them grouped):
+
+- **Connection**, pick one: `--port DEVICE` (serial, default `/dev/ttyACM0`)
+  or `--ble [ADDRESS]` (Bluetooth LE, see below). Passing both is an error.
+- **Serial only:** `--baud` (default 115200).
+- **BLE only:** `--no-reconnect`.
+- **Decoder only** (not with `config`): `--enable-on-start`; tracking
+  `--static-threshold` (m/s dead-band for STATIC), `--gate` (max metres a
+  target may jump between frames), `--age-out` (seconds before an unseen track
+  is dropped), `--smoothing` (EMA factor in (0,1]; lower = steadier, laggier);
+  output `--reporter {text,json,http}` (repeatable), and `--server-url` /
+  `--screen-name`, which only apply with `--reporter http`.
+
+Options that don't fit the chosen connection or command are rejected rather
+than silently ignored.
+
+## Bluetooth LE (optional)
+
+The LD2460 also streams over BLE, so it can run without a USB/UART cable.
+Install the extra and pass `--ble`:
+
+```bash
+pip install -e ".[ble]"              # adds bleak
+
+ld2460 --ble                         # first LD2460 found by scanning
+ld2460 --ble 89:EC:12:F6:6A:62       # a specific radar
+```
+
+From code: `stream_presence(ble="89:EC:12:F6:6A:62")` (or `ble="auto"`).
+
+Over BLE the module is a transparent UART bridge: service `FFF0` notifies the
+same report frames on `FFF1`, and command frames are written to `FFF2`
+(write-without-response). The radar only answers on a paired link, so on
+Linux the tool registers a temporary BlueZ agent that accepts the Just Works
+pairing (no PIN) the first time; the bond is kept by BlueZ, and
+`bluetoothctl remove <MAC>` undoes it. The user running `ld2460` must be
+allowed to register a BlueZ agent (the default `pi` user is).
+
+A dropped BLE link, or a radar that isn't reachable yet, is retried
+automatically: first after 2 s, doubling up to 60 s, and back to 2 s once
+reports flow again. Each retry logs a warning on stderr. `--no-reconnect`
+exits on the first disconnect instead. From code the same behaviour is
+`stream_presence(ble=..., reconnect=True, retry_delay=2.0, max_retry_delay=60.0)`
+(on by default for BLE, off for serial).
+
+## Radar settings
+
+`ld2460 config` reads and changes the settings stored on the radar. It works
+over serial (default `--port`) and over BLE (`--ble`) alike, since both carry
+the same command protocol; put the connection options before `config`:
+
+```bash
+ld2460 config show                              # serial, /dev/ttyACM0
+ld2460 --ble config show --json                 # first LD2460 over BLE
+
+ld2460 --ble config set --range 4.5 --angles -45 45
+ld2460 --port /dev/ttyUSB0 config set --mount wall --height 2.2 --tilt 25
+ld2460 --ble config set --mount ceiling --range 3.5 --angles 0 360
+ld2460 config reset --yes                       # factory settings
+```
+
+| Setting | Wall mount | Ceiling mount |
+|---|---|---|
+| `--range` (m) | 0–6 | 0–4 |
+| `--angles START END` (°) | −60 to 60 | 0 to 360 |
+| `--height` (m) | 1.6–2.6 | n/a |
+| `--tilt` (°) | 0–30 | n/a |
+| `--sensitivity` | high / medium / low | high / medium / low |
+
+Anything not given keeps its stored value. Values are checked against these
+limits before anything is written, then the settings are read back and
+printed. The detection range is stored separately for each mounting mode.
+Hi-Link's documents call the modes "side" and "top"; this tool says wall and
+ceiling. The protocol document marks sensitivity as reserved, so it may have
+no effect. Settings survive a power cycle. Commands are re-sent until the
+radar answers, since it ignores some requests.
+
+From code: `RadarConfigurator(reader, writer)` with `read_config()`,
+`apply(range_m=..., start_angle_deg=..., ...)` and `factory_reset()`, on any
+transport from `ld2460.transport.open_transport`.
 
 ## Use as a library
 

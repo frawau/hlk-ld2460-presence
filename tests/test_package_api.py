@@ -16,6 +16,11 @@ def test_public_api_exported():
         "run_pipeline",
         "iter_reports",
         "stream_presence",
+        "RadarConfigurator",
+        "RadarConfig",
+        "Mount",
+        "Sensitivity",
+        "ConfigError",
     }
     for name in expected:
         assert hasattr(ld2460, name), name

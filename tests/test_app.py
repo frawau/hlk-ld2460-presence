@@ -1,9 +1,11 @@
 import asyncio
 import itertools
 
+import pytest
+
 from ld2460.app import iter_reports, run_pipeline, stream_presence
 from ld2460.model import Motion
-from ld2460.protocol import build_report_frame
+from ld2460.protocol import build_report_frame, enable_reporting
 from ld2460.reporters import Reporter
 from ld2460.tracking import Tracker
 
@@ -133,3 +135,134 @@ async def test_stream_presence_opens_port_and_yields(monkeypatch):
     ]
     assert len(reports) == 2
     assert reports[-1].count == 1
+
+
+async def test_stream_presence_uses_ble_when_requested(monkeypatch):
+    frames = [build_report_frame([(0.0, 2.0)])]
+    reader = FakeReader(frames)
+    opened = []
+
+    class FakeWriter:
+        def write(self, _b):
+            pass
+
+        async def drain(self):
+            pass
+
+        def close(self):
+            pass
+
+        async def wait_closed(self):
+            pass
+
+    async def fake_open_ble(address):
+        opened.append(address)
+        return reader, FakeWriter()
+
+    async def no_serial(*_a, **_k):
+        raise AssertionError("serial must not be opened")
+
+    import ld2460.ble
+    import ld2460.transport
+
+    monkeypatch.setattr(ld2460.ble, "open_ble_stream", fake_open_ble)
+    monkeypatch.setattr(ld2460.transport, "open_byte_stream", no_serial)
+    reports = [
+        r async for r in stream_presence(ble="89:EC:12:F6:6A:62", reconnect=False)
+    ]
+    assert opened == ["89:EC:12:F6:6A:62"]
+    assert len(reports) == 1
+
+
+class _NullWriter:
+    def __init__(self):
+        self.written = []
+        self.closed = False
+
+    def write(self, b):
+        self.written.append(b)
+
+    async def drain(self):
+        pass
+
+    def close(self):
+        self.closed = True
+
+    async def wait_closed(self):
+        pass
+
+
+def _fake_ble_opener(monkeypatch, sessions):
+    """Patch open_ble_stream to replay `sessions`: an exception or a frame list."""
+    import ld2460.ble
+
+    writers = []
+    calls = iter(sessions)
+
+    async def fake_open(address):
+        session = next(calls)
+        if isinstance(session, Exception):
+            raise session
+        writer = _NullWriter()
+        writers.append(writer)
+        return FakeReader(session), writer
+
+    monkeypatch.setattr(ld2460.ble, "open_ble_stream", fake_open)
+    return writers
+
+
+async def test_ble_reconnects_after_disconnect_and_failed_connect(monkeypatch):
+    frame = build_report_frame([(0.0, 2.0)])
+    writers = _fake_ble_opener(
+        monkeypatch,
+        [[frame, frame], ConnectionError("not found"), [frame]],
+    )
+    stop = asyncio.Event()
+    reports = []
+    async for r in stream_presence(
+        ble="auto", stop=stop, enable_on_start=True, retry_delay=0
+    ):
+        reports.append(r)
+        if len(reports) == 3:
+            stop.set()
+    assert len(reports) == 3
+    assert len(writers) == 2
+    # enable-reporting is re-sent on every new connection; each one is closed.
+    assert all(w.written == [enable_reporting()] and w.closed for w in writers)
+
+
+async def test_ble_reconnect_can_be_disabled(monkeypatch):
+    frame = build_report_frame([(0.0, 2.0)])
+    _fake_ble_opener(monkeypatch, [[frame], [frame]])
+    reports = [r async for r in stream_presence(ble="auto", reconnect=False)]
+    assert len(reports) == 1
+
+
+async def test_failed_first_connect_raises_without_reconnect(monkeypatch):
+    _fake_ble_opener(monkeypatch, [ConnectionError("not found")])
+    with pytest.raises(ConnectionError):
+        async for _ in stream_presence(ble="auto", reconnect=False):
+            pass
+
+
+async def test_stop_interrupts_reconnect_wait(monkeypatch):
+    _fake_ble_opener(monkeypatch, [ConnectionError("x")] * 5)
+    stop = asyncio.Event()
+    asyncio.get_running_loop().call_later(0.05, stop.set)
+    reports = [r async for r in stream_presence(ble="auto", stop=stop, retry_delay=30)]
+    assert reports == []
+
+
+async def test_serial_does_not_reconnect_by_default(monkeypatch):
+    frame = build_report_frame([(0.0, 2.0)])
+    opens = []
+
+    async def fake_open(port, baud=115200):
+        opens.append(port)
+        return FakeReader([frame]), _NullWriter()
+
+    import ld2460.transport
+
+    monkeypatch.setattr(ld2460.transport, "open_byte_stream", fake_open)
+    reports = [r async for r in stream_presence("/dev/x")]
+    assert len(reports) == 1 and opens == ["/dev/x"]

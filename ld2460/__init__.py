@@ -1,6 +1,7 @@
 """HLK-LD2460 presence decoder."""
 
 from .app import iter_reports, run_pipeline, stream_presence
+from .config import ConfigError, Mount, RadarConfig, RadarConfigurator, Sensitivity
 from .model import Motion, Person, PresenceReport
 from .protocol import (
     FrameReader,
@@ -30,5 +31,10 @@ __all__ = [
     "run_pipeline",
     "iter_reports",
     "stream_presence",
+    "RadarConfigurator",
+    "RadarConfig",
+    "Mount",
+    "Sensitivity",
+    "ConfigError",
     "__version__",
 ]

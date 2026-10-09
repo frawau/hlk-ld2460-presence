@@ -90,20 +90,21 @@ Enclosure implications added by the CH343P:
 
 ## Coordinate system (confirms signed X in the protocol)
 
-- **Side-mounted:** X ∈ **[−6, 6] m** (right of antenna = +X), Y ∈ [0, 6] m
+- **Wall mount** (Hi-Link: "side-mounted"): X ∈ **[−6, 6] m** (right of antenna = +X), Y ∈ [0, 6] m
   (front = +Y), angle ∈ [−60°, +60°], 0° = normal.
-- **Top-mounted (ceiling):** X ∈ [−4, 4] m, Y ∈ [−4, 4] m, angle ∈ [0°, 360°].
-- Because X spans negative values, the reported X (and top-mount Y) are **signed
+- **Ceiling mount** (Hi-Link: "top-mounted"): X ∈ [−4, 4] m, Y ∈ [−4, 4] m, angle ∈ [0°, 360°].
+- Because X spans negative values, the reported X (and ceiling-mount Y) are **signed
   16-bit** little-endian, unit 0.1 m — this is the decode used in the software.
 
 ## Mounting / orientation (drives enclosure geometry)
 
-- **Side-hang (wall):** angle between module and wall **25–40°**, height
+- **Wall mount:** angle between module and wall **25–40°**, height
   **2.2–2.7 m** (factory default 30°, 2.6 m). The enclosure likely needs a wedge
   / tilt bracket in this range.
-- **Top (ceiling):** module horizontal, height **2.5–3 m**, antenna facing down.
-- The installation mode (side vs top) must also be set in firmware to match the
-  physical placement (see protocol command tables 9–12).
+- **Ceiling mount:** module horizontal, height **2.5–3 m**, antenna facing down.
+- The mounting mode (wall vs ceiling) must also be set on the radar to match the
+  physical placement (protocol tables 9–12): `ld2460 config set --mount wall|ceiling`.
+  Note the radar itself only accepts height 1.6–2.6 m and tilt 0–30° for wall mount.
 
 ## Enclosure design implications
 
@@ -115,7 +116,7 @@ Enclosure implications added by the CH343P:
   antenna face and the cover.
 - Provide **connector access** for the UART2 header (pin 7/8) + 5 V/GND, with
   strain relief.
-- Support the **side-mount 25–40° tilt** and **top-mount flat** options — either
+- Support the **wall-mount 25–40° tilt** and **ceiling-mount flat** options — either
   two enclosure variants or an adjustable wedge bracket.
 - Allow component-height clearance on the antenna side; don't clamp the PCB
   against components.
