@@ -11,6 +11,7 @@ import time
 from collections.abc import Sequence
 
 from .app import deliver_reports, stream_presence
+from .ble import MultipleRadarsError
 from .config import Mount, RadarConfig, RadarConfigurator, Sensitivity
 from .reporters import Reporter
 from .reporters.console import ConsoleJsonReporter, ConsoleTextReporter
@@ -61,8 +62,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         nargs="?",
         const="auto",
         metavar="ADDRESS",
-        help="connect over Bluetooth LE; ADDRESS is the radar's MAC, or omit it to "
-        "use the first LD2460 found (needs the [ble] extra)",
+        help="connect over Bluetooth LE, pairing on first use; ADDRESS is the "
+        "radar's MAC, or omit it to use the only LD2460 in range (if several are "
+        "found they are listed and ld2460 exits) (needs the [ble] extra)",
     )
 
     serial = p.add_argument_group("serial options")
@@ -337,14 +339,18 @@ def _setup_logging() -> None:
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     _setup_logging()
-    if args.command == "config":
-        try:
-            asyncio.run(_config_main(args))
-        except (ValueError, TimeoutError, ConnectionError) as exc:
-            # ConfigError is a ValueError: bad value or the radar refused it.
-            raise SystemExit(f"ld2460 config: {exc}") from None
-        return
-    asyncio.run(_amain(args))
+    try:
+        if args.command == "config":
+            try:
+                asyncio.run(_config_main(args))
+            except (ValueError, TimeoutError, ConnectionError) as exc:
+                # ConfigError is a ValueError: bad value or the radar refused it.
+                raise SystemExit(f"ld2460 config: {exc}") from None
+            return
+        asyncio.run(_amain(args))
+    except MultipleRadarsError as exc:  # --ble with several radars in range
+        print(f"ld2460: {exc}", file=sys.stderr)
+        raise SystemExit(2) from None
 
 
 if __name__ == "__main__":
