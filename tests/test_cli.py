@@ -81,3 +81,105 @@ def test_reconnect_on_by_default():
 
 def test_no_reconnect_flag():
     assert parse_args(["--ble", "--no-reconnect"]).reconnect is False
+
+
+def test_no_subcommand_runs_decoder():
+    assert parse_args([]).command is None
+
+
+def test_config_show_over_ble():
+    args = parse_args(["--ble", "89:EC:12:F6:6A:62", "config", "show", "--json"])
+    assert args.command == "config"
+    assert args.config_action == "show"
+    assert args.json is True
+    assert args.ble == "89:EC:12:F6:6A:62"
+
+
+def test_config_set_parses_metric_values_and_negative_angles():
+    args = parse_args(
+        [
+            "--port",
+            "/dev/ttyUSB0",
+            "config",
+            "set",
+            "--mount",
+            "wall",
+            "--height",
+            "2.2",
+            "--tilt",
+            "25",
+            "--range",
+            "4.5",
+            "--angles",
+            "-45",
+            "45",
+            "--sensitivity",
+            "medium",
+        ]
+    )
+    assert args.port == "/dev/ttyUSB0" and args.ble is None
+    assert args.mount == "wall"
+    assert (args.height, args.tilt, args.range) == (2.2, 25.0, 4.5)
+    assert args.angles == [-45.0, 45.0]
+    assert args.sensitivity == "medium"
+
+
+def test_config_set_requires_a_setting():
+    with pytest.raises(SystemExit):
+        parse_args(["config", "set"])
+
+
+def test_config_requires_action():
+    with pytest.raises(SystemExit):
+        parse_args(["config"])
+
+
+def test_config_reset_requires_yes():
+    with pytest.raises(SystemExit):
+        parse_args(["config", "reset"])
+    assert parse_args(["config", "reset", "--yes"]).config_action == "reset"
+
+
+def test_config_kwargs_mapping():
+    from ld2460.__main__ import config_changes
+    from ld2460.config import Mount, Sensitivity
+
+    args = parse_args(
+        [
+            "config",
+            "set",
+            "--mount",
+            "ceiling",
+            "--angles",
+            "0",
+            "270",
+            "--sensitivity",
+            "low",
+        ]
+    )
+    assert config_changes(args) == {
+        "mount": Mount.CEILING,
+        "start_angle_deg": 0.0,
+        "end_angle_deg": 270.0,
+        "sensitivity": Sensitivity.LOW,
+    }
+
+
+def test_format_config_human_readable():
+    from ld2460.__main__ import format_config
+    from ld2460.config import Mount, RadarConfig, Sensitivity
+
+    text = format_config(
+        RadarConfig(
+            "V1.3 (2025-03)", Mount.WALL, 2.6, 30.0, 6.0, -60.0, 60.0, Sensitivity.HIGH
+        )
+    )
+    assert "Mount:            wall" in text
+    assert "Height:           2.60 m" in text
+    assert "Detection range:  6.0 m, -60.0° to 60.0°" in text
+
+
+def test_bare_ble_before_config_means_auto():
+    args = parse_args(["--ble", "config", "show"])
+    assert args.ble == "auto"
+    assert args.command == "config" and args.config_action == "show"

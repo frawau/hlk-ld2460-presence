@@ -68,6 +68,42 @@ exits on the first disconnect instead. From code the same behaviour is
 `stream_presence(ble=..., reconnect=True, retry_delay=2.0, max_retry_delay=60.0)`
 (on by default for BLE, off for serial).
 
+## Radar settings
+
+`ld2460 config` reads and changes the settings stored on the radar. It works
+over serial (default `--port`) and over BLE (`--ble`) alike, since both carry
+the same command protocol; put the connection options before `config`:
+
+```bash
+ld2460 config show                              # serial, /dev/ttyACM0
+ld2460 --ble config show --json                 # first LD2460 over BLE
+
+ld2460 --ble config set --range 4.5 --angles -45 45
+ld2460 --port /dev/ttyUSB0 config set --mount wall --height 2.2 --tilt 25
+ld2460 --ble config set --mount ceiling --range 3.5 --angles 0 360
+ld2460 config reset --yes                       # factory settings
+```
+
+| Setting | Wall mount | Ceiling mount |
+|---|---|---|
+| `--range` (m) | 0–6 | 0–4 |
+| `--angles START END` (°) | −60 to 60 | 0 to 360 |
+| `--height` (m) | 1.6–2.6 | n/a |
+| `--tilt` (°) | 0–30 | n/a |
+| `--sensitivity` | high / medium / low | high / medium / low |
+
+Anything not given keeps its stored value. Values are checked against these
+limits before anything is written, then the settings are read back and
+printed. The detection range is stored separately for each mounting mode.
+Hi-Link's documents call the modes "side" and "top"; this tool says wall and
+ceiling. The protocol document marks sensitivity as reserved, so it may have
+no effect. Settings survive a power cycle. Commands are re-sent until the
+radar answers, since it ignores some requests.
+
+From code: `RadarConfigurator(reader, writer)` with `read_config()`,
+`apply(range_m=..., start_angle_deg=..., ...)` and `factory_reset()`, on any
+transport from `ld2460.transport.open_transport`.
+
 ## Use as a library
 
 Drive the decoder from your own code (e.g. to feed another module) — no CLI
