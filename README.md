@@ -126,6 +126,68 @@ ceiling. The protocol document marks sensitivity as reserved, so it may have
 no effect. Settings survive a power cycle. Commands are re-sent until the
 radar answers, since it ignores some requests.
 
+### Orientation: which way is +X, +Y and 0°
+
+Directions come from the Hi-Link module manual (§7, Figures 8 and 9).
+
+**Finding "up" on the module.** The antenna side is the side with the gold
+square patches; the chips and pin headers are on the other side. The antenna
+side has silkscreen at both short ends:
+
+- the **IO end** reads `IO1 IO2 IO3 IO4` and `Rx Tx GND 3.3V` (the UART2
+  header) and sits next to the antenna patches;
+- the **5V end** reads `Tx Rx` and `GND 5V`.
+
+Hold the board with the antenna side towards you and the IO end at the top.
+That is the orientation of the manual's figures:
+
+```
+          IO end  (IO1–IO4, Rx Tx GND 3.3V)        ceiling: −Y
+        ┌─────────────────────┐
+        │   ▢     ▢     ▢     │  antenna patches
+  −X ◄──┤                     ├──► +X   (your right, facing the antenna)
+        │                     │
+        │                     │
+        └─────────────────────┘
+          5V end  (Tx Rx, GND 5V)                  ceiling: +Y
+```
+
+**"Right" means your right as you face the antenna side.** Seen from the
+radar, +X is on its left.
+
+**Wall mount.** +Y points straight out of the antenna face into the room; X
+runs across the board's 32 mm width. 0° is straight ahead, negative angles
+are on the −X side (your left as you face the radar), positive on the +X side,
+limited to ±60°. For angles to read left/right, mount the board upright with
+the IO end at the top. With the 5V end at the top, left and right swap.
+Mounted sideways (long edge horizontal), X and the angles measure up/down
+instead of left/right.
+
+**Ceiling mount.** Standing below and looking up, you see the antenna side, so
+use the diagram as you see it from the floor. The radar covers a disc on the
+floor around the point below it; `--range` is the radius (up to 4 m).
+- +X is to your right, +Y towards the 5V end (the manual's "lower side").
+- **0° points to +X.**
+- In the manual's Figure 9, angles increase towards the IO end. That puts
+  90° towards the IO end (−Y), 180° at −X and 270° towards the 5V end (+Y).
+  It's counter-clockwise as seen from below.
+
+`--angles START END` selects the slice from START to END. Examples:
+- `0 360`: the whole disc (factory setting).
+- `0 180`: the half towards the IO end.
+- `90 270`: the half on the −X side.
+
+START must be below END, so a slice crossing 0° (e.g. 300° to 30°) can't be
+set. Turn the radar instead so the area you want doesn't straddle +X.
+
+> **Unverified:** Hi-Link's own app draws the ceiling slice the other way
+> round relative to the reported Y (90° at +Y, the 5V end), contradicting
+> Figure 9. To check on your installation:
+> 1. Set `config set --mount ceiling --angles 0 180`.
+> 2. Stand below the radar on the IO side (−Y), then on the 5V side (+Y).
+> 3. Note which side the radar still reports. If it's the IO side, Figure 9
+>    is right.
+
 From code: `RadarConfigurator(reader, writer)` with `read_config()`,
 `apply(range_m=..., start_angle_deg=..., ...)` and `factory_reset()`, on any
 transport from `ld2460.transport.open_transport`.
