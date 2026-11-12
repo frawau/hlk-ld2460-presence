@@ -30,6 +30,7 @@ class FakeRadar:
         self.silent = silent
         self.fail = fail
         self.noise = noise
+        self.fw = (1, 3)
         self.commands: list[tuple[int, bytes]] = []
         self._out: asyncio.Queue[bytes] = asyncio.Queue()
 
@@ -64,7 +65,7 @@ class FakeRadar:
     def _handle(self, func, data):
         ok = b"\x00" if self.fail else b"\x01"
         if func == 0x0B:
-            return bytes([self.mount, 25, 3, 1, 3])
+            return bytes([self.mount, 25, 3, *self.fw])
         if func == 0x0A:
             return bytes([self.mount])
         if func == 0x08:
@@ -121,6 +122,19 @@ async def test_read_config_wall():
     assert (cfg.height_m, cfg.tilt_deg) == (2.6, 30.0)
     assert (cfg.range_m, cfg.start_angle_deg, cfg.end_angle_deg) == (6.0, -60.0, 60.0)
     assert cfg.sensitivity is Sensitivity.HIGH
+
+
+@pytest.mark.parametrize(
+    "fw, unsafe",
+    [((1, 2), False), ((1, 3), False), ((1, 4), True), ((2, 0), True)],
+)
+async def test_firmware_newer_than_v1_3_is_flagged_unsafe(fw, unsafe):
+    # Hi-Link firmware newer than V1.3 bricks the LD2460, so callers must not update or rely on it
+    radar = FakeRadar()
+    radar.fw = fw
+    cfg = await _cfg(radar).read_config()
+    assert cfg.firmware_version == fw
+    assert cfg.firmware_unsafe is unsafe
 
 
 async def test_read_config_ceiling_skips_installation_query():

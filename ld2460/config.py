@@ -55,6 +55,8 @@ RANGE_LIMITS = {
 }
 HEIGHT_LIMITS_M = (1.6, 2.6)
 TILT_LIMITS_DEG = (0.0, 30.0)
+# Hi-Link firmware newer than V1.3 (2025-03) bricks the LD2460: https://ask.hlktech.net/questions/10010000000000165
+LAST_SAFE_FIRMWARE = (1, 3)
 
 
 @dataclass
@@ -69,6 +71,11 @@ class RadarConfig:
     start_angle_deg: float
     end_angle_deg: float
     sensitivity: Sensitivity
+    firmware_version: tuple[int, int] = (0, 0)
+
+    @property
+    def firmware_unsafe(self) -> bool:
+        return self.firmware_version > LAST_SAFE_FIRMWARE
 
     def to_dict(self) -> dict:
         return {
@@ -173,6 +180,7 @@ class RadarConfigurator:
         )
         return RadarConfig(
             firmware=f"V{major}.{minor} ({year:04d}-{month:02d})",
+            firmware_version=(major, minor),
             mount=mount,
             height_m=height,
             tilt_deg=tilt,
